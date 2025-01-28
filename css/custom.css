@@ -17,6 +17,7 @@
   h1#site-title {
     font-family: ZhuZiAYuanJWD;
     font-size: 3em !important;
+    color: #3b70fc; /* 设置标题颜色为蓝色 */
   }
   a.article-title,
   a.blog-slider__title,
