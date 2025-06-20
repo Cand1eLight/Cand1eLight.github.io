@@ -4,6 +4,27 @@
   
     
     <entry>
+      <title>倒计时186天 | 心流与瓶颈的博弈</title>
+      <link href="/posts/cf6106a9.html"/>
+      <url>/posts/cf6106a9.html</url>
+      
+        <content type="html"><![CDATA[<blockquote><p>🌟 本周状态：突破瓶颈期的阵痛</p></blockquote><hr><p><img src="https://204180371.xyz/PicGo/AEE15B13731C5BA4CB812F971A2C4EE4.jpg" alt="封面"></p><h2 id="📊-核心进度总览"><a href="#📊-核心进度总览" class="headerlink" title="📊 核心进度总览"></a>📊 核心进度总览</h2><div class="table-container"><table><thead><tr><th>科目</th><th>当前进度</th><th>关键任务</th><th>预计完成时间</th></tr></thead><tbody><tr><td>线性代数</td><td>25%</td><td>矩阵题型总结</td><td>明日</td></tr><tr><td>操作系统</td><td>95%</td><td>第五章学习+错题整理</td><td>3天内</td></tr><tr><td>英语</td><td>70%</td><td>单词清欠+真题训练</td><td>持续进行</td></tr></tbody></table></div><hr><h2 id="📈-详细进度可视化"><a href="#📈-详细进度可视化" class="headerlink" title="📈 详细进度可视化"></a>📈 详细进度可视化</h2><div class="pure-progress">  <div class="bar" style="width:25%; background:#4CAF50">线代 25%</div></div><div class="pure-progress">  <div class="bar" style="width:95%; background:#2196F3">操作系统 95%</div></div><div class="pure-progress">  <div class="bar" style="width:70%; background:#ff5722">英语 70%</div></div><hr><h2 id="📚-科目详情"><a href="#📚-科目详情" class="headerlink" title="📚 科目详情"></a>📚 科目详情</h2><h3 id="🔥-线性代数"><a href="#🔥-线性代数" class="headerlink" title="🔥 线性代数"></a>🔥 线性代数</h3><div class="simple-card">  <h4>当前状态：🧩 题型攻坚</h4>  <div class="original-content">    矩阵的题目难度还是有点大，难度还是比较高，写的很慢，明天一定要把综合篇的矩阵写完。还是先把题型和之类的总结一下。最后写题目的速度可能会快一点。但是，不知道总结题型要花多少时间。  </div></div><h3 id="💻-操作系统"><a href="#💻-操作系统" class="headerlink" title="💻 操作系统"></a>💻 操作系统</h3><div class="simple-card">  <h4>当前状态：✅ 收尾冲刺</h4>  <div class="original-content">    操作系统，今天终于把第四章学完了，明天尽力把第五章学完吧，我要学计网！  </div></div><h3 id="🌐-英语"><a href="#🌐-英语" class="headerlink" title="🌐 英语"></a>🌐 英语</h3><div class="simple-card">  <h4>当前状态：📝 词汇攻坚</h4>  <div class="original-content">    哎，今天要被单词和写真题的，结果时间不允许。  </div></div><hr><h2 id="🌸-深度总结"><a href="#🌸-深度总结" class="headerlink" title="🌸 深度总结"></a>🌸 深度总结</h2><div class="summary-card">  <div class="thought-section">    <i class="fas fa-heartbeat"></i>    <h4>心流状态</h4>    <div class="content">      哎，写不动了，我心此时不静也。哎，明日又是新的一天。    </div>  </div>  <div class="thought-section">    <i class="fas fa-mountain"></i>    <h4>瓶颈突破</h4>    <div class="content">      线代矩阵难题需要系统总结题型，操作系统即将进入收尾阶段，英语备考需要更高效的时间管理。    </div>  </div>  <div class="thought-section">    <i class="fas fa-clock"></i>    <h4>时间焦虑</h4>    <div class="content">      每日都在与时间赛跑，但总感觉差那么一口气。或许这就是备考常态？    </div>  </div></div>]]></content>
+      
+      
+      
+        <tags>
+            
+            <tag> 考研 </tag>
+            
+            <tag> 复盘 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>倒计时187天 | 正式开始，今日专注8+h</title>
       <link href="/posts/964fe6a1.html"/>
       <url>/posts/964fe6a1.html</url>
@@ -350,10 +371,10 @@
     
     <entry>
       <title></title>
-      <link href="/js/runtime/runtime.js"/>
-      <url>/js/runtime/runtime.js</url>
+      <link href="/js/runtime/runtime.min.js"/>
+      <url>/js/runtime/runtime.min.js</url>
       
-        <content type="html"><![CDATA[var now = new Date();function createtime() {    // 设置起始时间    var startTime = new Date("01/27/2025 00:00:00");    now.setTime(now.getTime() + 250);    // 计算运行时间    var days = Math.floor((now - startTime) / 1e3 / 60 / 60 / 24); // 运行天数    var hours = Math.floor(((now - startTime) / 1e3 / 60 / 60) % 24); // 运行小时数    var minutes = Math.floor(((now - startTime) / 1e3 / 60) % 60); // 运行分钟数    var seconds = Math.round(((now - startTime) / 1e3) % 60); // 运行秒数    // 格式化为两位数    hours = hours < 10 ? "0" + hours : hours;    minutes = minutes < 10 ? "0" + minutes : minutes;    seconds = seconds < 10 ? "0" + seconds : seconds;    // 根据时间段设置显示内容    let displayContent = "";    if (hours >= 9 && hours < 18) {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-33-09.png' title='加油喵！'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    } else {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-31-48.png' title='休息喵……'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    }    // 更新页面内容    const workboard = document.getElementById("workboard");    if (workboard) {        workboard.innerHTML = displayContent;    }}// 每 250 毫秒更新一次setInterval(() => {    createtime();}, 250);]]></content>
+        <content type="html"><![CDATA[var now = new Date; function createtime() { var t = new Date("04/01/2021 00:00:00"); now.setTime(now.getTime() + 250); var e = (now - t) / 1e3 / 60 / 60 / 24, a = Math.floor(e), n = (now - t) / 1e3 / 60 / 60 - 24 * a, r = Math.floor(n); 1 == String(r).length && (r = "0" + r); var s = (now - t) / 1e3 / 60 - 1440 * a - 60 * r, i = Math.floor(s); 1 == String(i).length && (i = "0" + i); var o = (now - t) / 1e3 - 86400 * a - 3600 * r - 60 * i, l = Math.round(o); 1 == String(l).length && (l = "0" + l); let g = ""; g = r < 18 && r >= 9 ? `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-上班摸鱼中.svg' title='距离月入25k也就还差一个大佬带我~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>` : `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-下班啦.svg' title='下班了就该开开心心的玩耍，嘿嘿~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>`, document.getElementById("workboard") && (document.getElementById("workboard").innerHTML = g) } setInterval((() => { createtime() }), 250);]]></content>
       
     </entry>
     
@@ -361,10 +382,10 @@
     
     <entry>
       <title></title>
-      <link href="/js/runtime/runtime.min.js"/>
-      <url>/js/runtime/runtime.min.js</url>
+      <link href="/js/runtime/runtime.js"/>
+      <url>/js/runtime/runtime.js</url>
       
-        <content type="html"><![CDATA[var now = new Date; function createtime() { var t = new Date("04/01/2021 00:00:00"); now.setTime(now.getTime() + 250); var e = (now - t) / 1e3 / 60 / 60 / 24, a = Math.floor(e), n = (now - t) / 1e3 / 60 / 60 - 24 * a, r = Math.floor(n); 1 == String(r).length && (r = "0" + r); var s = (now - t) / 1e3 / 60 - 1440 * a - 60 * r, i = Math.floor(s); 1 == String(i).length && (i = "0" + i); var o = (now - t) / 1e3 - 86400 * a - 3600 * r - 60 * i, l = Math.round(o); 1 == String(l).length && (l = "0" + l); let g = ""; g = r < 18 && r >= 9 ? `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-上班摸鱼中.svg' title='距离月入25k也就还差一个大佬带我~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>` : `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-下班啦.svg' title='下班了就该开开心心的玩耍，嘿嘿~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>`, document.getElementById("workboard") && (document.getElementById("workboard").innerHTML = g) } setInterval((() => { createtime() }), 250);]]></content>
+        <content type="html"><![CDATA[var now = new Date();function createtime() {    // 设置起始时间    var startTime = new Date("01/27/2025 00:00:00");    now.setTime(now.getTime() + 250);    // 计算运行时间    var days = Math.floor((now - startTime) / 1e3 / 60 / 60 / 24); // 运行天数    var hours = Math.floor(((now - startTime) / 1e3 / 60 / 60) % 24); // 运行小时数    var minutes = Math.floor(((now - startTime) / 1e3 / 60) % 60); // 运行分钟数    var seconds = Math.round(((now - startTime) / 1e3) % 60); // 运行秒数    // 格式化为两位数    hours = hours < 10 ? "0" + hours : hours;    minutes = minutes < 10 ? "0" + minutes : minutes;    seconds = seconds < 10 ? "0" + seconds : seconds;    // 根据时间段设置显示内容    let displayContent = "";    if (hours >= 9 && hours < 18) {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-33-09.png' title='加油喵！'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    } else {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-31-48.png' title='休息喵……'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    }    // 更新页面内容    const workboard = document.getElementById("workboard");    if (workboard) {        workboard.innerHTML = displayContent;    }}// 每 250 毫秒更新一次setInterval(() => {    createtime();}, 250);]]></content>
       
     </entry>
     
