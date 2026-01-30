@@ -6,7 +6,7 @@
   <link href="https://cand1elight.github.io/atom.xml" rel="self"/>
   
   <link href="https://cand1elight.github.io/"/>
-  <updated>2025-07-02T15:41:44.158Z</updated>
+  <updated>2026-01-30T16:11:04.506Z</updated>
   <id>https://cand1elight.github.io/</id>
   
   <author>
@@ -17,11 +17,39 @@
   <generator uri="https://hexo.io/">Hexo</generator>
   
   <entry>
+    <title>尝试机器学习和深度学习</title>
+    <link href="https://cand1elight.github.io/posts/3069dbbd.html"/>
+    <id>https://cand1elight.github.io/posts/3069dbbd.html</id>
+    <published>2026-01-30T14:56:26.000Z</published>
+    <updated>2026-01-30T16:11:04.506Z</updated>
+    
+    <content type="html"><![CDATA[<p><img src="https://204180371.xyz/PicGo/105CA4DF96921225CC2C17F4C62B37BF.jpg" alt="封面" style="width:100%; border-radius:8px; margin-bottom: 20px;"></p><h1>尝试机器学习和深度学习</h1><div class="simple-card"><h4>🛠️ 环境配置与起步</h4><div class="content" style="margin-bottom: 15px;"><p>今天先学习了环境的配置，先是安装的Python、pycharm、anaconda，没想到时至今日，仍然在用我初学时的Python3.8，怎么不像是回首看了眼自己呢，只是回首后发现，原来的自己仍然在自己的身边，我这么多年，并没有走出多远。</p></div><div class="content"><p>安装库，使用显卡对应的驱动，时代总是在变化，课程中所谓的富哥用的3060早已停产，就连我用的4060都已经停产，时代不等人，或许那个教学视频的使用期限也就止步今年了，不过还好，我赶上了末班车，没浪费。希望后续不会出现差错吧。</p></div><h4 style="margin-top: 20px;">📅 学习节奏</h4><div class="pure-progress" style="margin: 10px 0;"><div class="bar" style="width:10%; background:#4CAF50; text-align:center; color:white; border-radius:10px;">Daily: 2 Hours</div></div><div class="original-content" style="margin-top: 15px; border-top: 1px dashed #eee; padding-top: 10px;"><p>每天两小时的学习，再看看电子书，充实一下自己吧，后续我人生中这样的时间也不多了。哈哈哈，当然还是希望以后能多一些休闲的时间。</p></div></div><div style="height: 60px; clear: both; width: 100%;"></div><h1>末尾</h1><div class="simple-card"><h4>💭 内心独白</h4><div class="content"><p>要说的话也都一口气全说出来了，没有一个能袒露的人还真是难受啊，无人可诉定是一种悲哀，无可救药的悲哀。不过我也是习惯了，就如此吧，也挺好的。比在心里腐朽发臭要强。期待后续的学习和成长吧。今日便如此了。</p><br><p>许久未写博客，时间飞逝，少年心气犹如不可再生之物，我现在可以说是很丧了。不知道自己要干什么，不知道自己能干什么，不知道未来会怎样。只是觉得，自己好像很废物，感觉什么都做不好，还什么都不会，考研考了个寂寞，工作也找不到，人生好像就这样了。</p><br><p>我真的不知道为什么要提升自己的学历了，舍友找到了上海的工作，姐姐找到了铁饭碗。我还在家里当蛀虫，周围很多人都开始补贴家用，有着自由分配的财产，要么就是留学有望或者直接保研。向着自己美好的人生一步步走去，而我还是啥都不知道。</p></div></div><div style="height: 30px;"></div><div class="simple-card" style="border-left: 5px solid #ff9800;"><h4>🌧️ 迷茫与现状</h4><div class="content"><p>我也想留学，但我成绩也不高，还没科研。我也想找工作，但是我什么都不会。准备的考研也是烂尾收场，感觉完全没有了希望，就好像我的人生注定要烂掉一样。考研的投入就像是石沉大海，对找工作没用，对留学没有用。什么都干不好，一切都搞砸了。</p><br><p>我在考研前还觉得，自己可能更需要提升学历，然后也更擅长读书，但好像高中或者初中吧，我学习就已经不行了，哎。怨天尤人吗，我做不到，感觉一切都是我自己的问题。别人都越来越稳定，只有我在一条风雨飘摇的海面上，行驶着我人生的船，有时候甚至会觉得，自己20多年白活了，没有一技之长，没有出色的成绩，也远非面容较好。</p></div></div><div style="height: 50px;"></div><div class="simple-card" style="background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"><div class="thought-section" style="display: flex; align-items: flex-start; margin-bottom: 20px;"><div style="font-size: 24px; color: #2196F3; margin-right: 15px; min-width: 30px;"><i class="fas fa-cloud"></i></div><div><h4 style="margin: 0 0 5px 0;">凌云志</h4><div class="content">或许我早该承认我的人生将一事无成，但我仍然秉持着少年心气，念着我的凌云志。哪怕时至今日也依然如此，只不过我的少年心气逐渐被风尘蚀去。愈来愈少了。</div></div></div><div class="thought-section" style="display: flex; align-items: flex-start; margin-bottom: 20px;"><div style="font-size: 24px; color: #ff5722; margin-right: 15px; min-width: 30px;"><i class="fas fa-fire"></i></div><div><h4 style="margin: 0 0 5px 0;">心中的火</h4><div class="content">少年心气当真不可再生吗，可能少年心气就像是我心里的一团火，在不懂事的时候就莫名升了起来，从此便旺盛的燃烧了十几年，时至今日，已无力添柴。火越来越小了，当它灭掉的时候，便真不知道如何重燃了。</div></div></div><div class="thought-section" style="display: flex; align-items: flex-start; background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px;"><div style="font-size: 24px; color: #4CAF50; margin-right: 15px; min-width: 30px;"><i class="fas fa-seedling"></i></div><div><h4 style="margin: 0 0 5px 0;">Keep Learning</h4><div class="content">所幸如今我还是知晓一二分道理，keep learning，keep curious。所以，学习吧，学习一些感兴趣的吧，在这可贵的间隙，给我心中的火添一把柴。<br><br><b>只要心中的火不曾熄灭，纵使微末如烛，亦当护之于风雪之中，加草添柴。</b></div></div></div></div>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;&lt;img src=&quot;https://204180371.xyz/PicGo/105CA4DF96921225CC2C17F4C62B37BF.jpg&quot; alt=&quot;封面&quot; style=&quot;width:100%; border-radius:8px; margin-bottom:</summary>
+      
+    
+    
+    
+    <category term="学习日记" scheme="https://cand1elight.github.io/categories/%E5%AD%A6%E4%B9%A0%E6%97%A5%E8%AE%B0/"/>
+    
+    
+    <category term="机器学习" scheme="https://cand1elight.github.io/tags/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/"/>
+    
+    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
+    
+    <category term="随笔" scheme="https://cand1elight.github.io/tags/%E9%9A%8F%E7%AC%94/"/>
+    
+  </entry>
+  
+  <entry>
     <title>倒计时172天|建立体系，根据体系行动</title>
     <link href="https://cand1elight.github.io/posts/db47ba97.html"/>
     <id>https://cand1elight.github.io/posts/db47ba97.html</id>
     <published>2025-07-02T15:37:47.000Z</published>
-    <updated>2025-07-02T15:41:44.158Z</updated>
+    <updated>2025-07-02T15:42:00.048Z</updated>
     
     <content type="html"><![CDATA[<h2 id=""><a href="#" class="headerlink" title=""></a><img src="https://204180371.xyz/PicGo/5E9479F17D8C7DB7E1D5A2D059FE006F.jpg" alt="封面"></h2><h2 id="📊-核心OKR总览"><a href="#📊-核心OKR总览" class="headerlink" title="📊 核心OKR总览"></a>📊 核心OKR总览</h2><div class="table-container"><table><thead><tr><th>类型</th><th>目标</th><th>关键结果</th><th>当前进度</th></tr></thead><tbody><tr><td>数学</td><td>20天线代强化</td><td>完成880题目<br>完成线代解题书阅读<br>完成所有错题整理</td><td>17/35 (48.6%)</td></tr><tr><td>计算机</td><td>20天计网学习</td><td>数据链路层<br>网络层<br>传输层<br>应用层</td><td>62/300 (20.7%)</td></tr><tr><td>英语</td><td>一个半月背完全部词汇</td><td>周还剩2121个<br>月中还剩1521个<br>月末还剩681个</td><td>2361/2361 (0%)</td></tr></tbody></table></div><hr><h2 id="📈-学习进度可视化"><a href="#📈-学习进度可视化" class="headerlink" title="📈 学习进度可视化"></a>📈 学习进度可视化</h2><div class="pure-progress">  <div class="bar" style="width:50%; background:#4CAF50">线代 50%</div></div><div class="pure-progress">  <div class="bar" style="width:20%; background:#2196F3">计网 20%</div></div><div class="pure-progress">  <div class="bar" style="width:1%; background:#ff5722">英语 1%</div></div><hr><h2 id="🎯-OKR专项拆解"><a href="#🎯-OKR专项拆解" class="headerlink" title="🎯 OKR专项拆解"></a>🎯 OKR专项拆解</h2><h3 id="🔢-数学目标"><a href="#🔢-数学目标" class="headerlink" title="🔢 数学目标"></a>🔢 数学目标</h3><div class="simple-card">  <h4>🎯 O: 线代强化（20天）</h4>  <ul>    <li>KR：完成880题目</li>    <li>KR：完成线代解题书阅读</li>    <li>KR：完成所有错题整理</li>  </ul>  <h4>📅 二次拆分</h4>  <ul>    <li>KR：本周及下周一半时间完成880线代部分</li>    <li>KR：下周加半周完成解题书阅读、错题整理</li>  </ul>  <div class="original-content">    目前880进度17/35  </div></div><h3 id="💻-计算机网络"><a href="#💻-计算机网络" class="headerlink" title="💻 计算机网络"></a>💻 计算机网络</h3><div class="simple-card">  <h4>🎯 O: 计网学习（20天）</h4>  <ul>    <li>KR：数据链路层</li>    <li>KR：网络层</li>    <li>KR：传输层</li>    <li>KR：应用层</li>  </ul>  <h4>📅 二次划分</h4>  <ul>    <li>KR：数据链路层 3天</li>    <li>KR：网络层 4天</li>    <li>KR：传输层 3天</li>    <li>KR：应用层 2天</li>  </ul>  <div class="original-content">    目前计网进度 62/300  </div></div><h3 id="🌐-英语"><a href="#🌐-英语" class="headerlink" title="🌐 英语"></a>🌐 英语</h3><div class="simple-card">  <h4>🎯 O: 词汇攻坚（45天）</h4>  <ul>    <li>KR：本周还剩2121个单词</li>    <li>KR：月中还剩1521个单词</li>    <li>KR：月末还剩681个单词</li>  </ul>  <div class="original-content">    目前剩余2361/2361  </div></div><hr><h2 id="🌸-深度总结"><a href="#🌸-深度总结" class="headerlink" title="🌸 深度总结"></a>🌸 深度总结</h2><div class="summary-card">  <div class="thought-section">    <i class="fas fa-magnifying-glass"></i>    <h4>目标进度</h4>    <div class="content">      总的来看是逐步进行，如果能够如此保持到月末，方可言，神功已成！    </div>  </div>  <div class="thought-section">    <i class="fas fa-hourglass-half"></i>    <h4>复盘价值</h4>    <div class="content">      很喜欢这种复盘的感觉，月末不知道意志力能够到几级    </div>  </div>  <div class="thought-section">    <i class="fas fa-ticket"></i>    <h4>动力系统</h4>    <div class="content">      我会努力攒消费券的，我会攒够2w梦想券，然后功成名就    </div>  </div></div>]]></content>
     
@@ -485,26 +513,6 @@
       
       
     <summary type="html">&lt;p&gt;诶多……☆是♡同♡类♡呢♡喵♪（由乃逆光捧脸.jpg）那群八嘎是不会懂的呀……关于「二次元の美好」♡呐，如果说吾の存在有意义的话、那一定是因为「二·次·元」吧☆？所以呢——妄图污染这份「爱」的人类、都会被吾「抹」「杀」「掉」喔♪（小声）嘛……讨厌二次元的八嘎三次元最恶心了啊</summary>
-      
-    
-    
-    
-    
-  </entry>
-  
-  <entry>
-    <title>Hello World</title>
-    <link href="https://cand1elight.github.io/posts/4a17b156.html"/>
-    <id>https://cand1elight.github.io/posts/4a17b156.html</id>
-    <published>2025-01-27T11:52:55.447Z</published>
-    <updated>2025-01-27T12:20:12.891Z</updated>
-    
-    <content type="html"><![CDATA[<p>Welcome to <a href="https://hexo.io/">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues">GitHub</a>.</p><h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">&quot;My New Post&quot;</span></span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/writing.html">Writing</a></p><h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/server.html">Server</a></p><h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/generating.html">Generating</a></p><h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/one-command-deployment.html">Deployment</a></p>]]></content>
-    
-    
-      
-      
-    <summary type="html">&lt;p&gt;Welcome to &lt;a href=&quot;https://hexo.io/&quot;&gt;Hexo&lt;/a&gt;! This is your very first post. Check &lt;a href=&quot;https://hexo.io/docs/&quot;&gt;documentation&lt;/a&gt; for</summary>
       
     
     
