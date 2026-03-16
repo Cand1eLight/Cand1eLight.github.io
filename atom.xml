@@ -6,7 +6,7 @@
   <link href="https://cand1elight.github.io/atom.xml" rel="self"/>
   
   <link href="https://cand1elight.github.io/"/>
-  <updated>2026-01-30T16:11:04.506Z</updated>
+  <updated>2026-03-16T16:07:03.204Z</updated>
   <id>https://cand1elight.github.io/</id>
   
   <author>
@@ -15,6 +15,37 @@
   </author>
   
   <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>量子-机器学习QCNN代码复现</title>
+    <link href="https://cand1elight.github.io/posts/1d7390fa.html"/>
+    <id>https://cand1elight.github.io/posts/1d7390fa.html</id>
+    <published>2026-03-16T15:46:08.000Z</published>
+    <updated>2026-03-16T16:07:03.204Z</updated>
+    
+    <content type="html"><![CDATA[<p><img src="https://204180371.xyz/PicGo/D9A8D7A0140D79A8A2705B88C9153F68.jpg" alt="封面"></p><h1 id="从零跑通-QCNN-图像分类：混合量子神经网络复现踩坑全纪录"><a href="#从零跑通-QCNN-图像分类：混合量子神经网络复现踩坑全纪录" class="headerlink" title="从零跑通 QCNN 图像分类：混合量子神经网络复现踩坑全纪录"></a>从零跑通 QCNN 图像分类：混合量子神经网络复现踩坑全纪录</h1><h2 id="💡-前言：万事开头难的-Baseline"><a href="#💡-前言：万事开头难的-Baseline" class="headerlink" title="💡 前言：万事开头难的 Baseline"></a>💡 前言：万事开头难的 Baseline</h2><p>我的毕业论文方向是<strong>“基于混合量子-经典神经网络的图像分类算法研究”</strong>。理论看了不少，但真要上手把前沿的开源代码在自己的电脑上跑通，才发现“工程实现”和“理论推导”之间隔着一整个太平洋的 Bug。</p><p>这篇博客完整记录了我基于 Python 3.8，在纯 CPU 环境下从零搭建环境、排查报错，并最终在 MNIST 数据集上用 8 个量子比特（PCA降维 + U_SU4 架构）跑出 <strong>97.96%</strong> 准确率的全过程。希望能帮到同样在量子机器学习（QML）泥坑里挣扎的同学们。</p><p><img src="https://204180371.xyz/PicGo/PixPin_2026-03-16_23-51-44.png" alt="loss下降曲线"></p><hr><h2 id="🛑-踩坑一：消失的“幽灵环境”（PowerShell-陷阱）"><a href="#🛑-踩坑一：消失的“幽灵环境”（PowerShell-陷阱）" class="headerlink" title="🛑 踩坑一：消失的“幽灵环境”（PowerShell 陷阱）"></a>🛑 踩坑一：消失的“幽灵环境”（PowerShell 陷阱）</h2><p>复现代码的第一步永远是配置虚拟环境，但我在这里结结实实地踩了 Windows 的一个暗坑。我一开始图方便，直接在 PyCharm 底部的 Terminal 终端里用 <code>conda create</code> 和 <code>pip install</code>，结果代码一跑就报：</p><blockquote><p><code>ModuleNotFoundError: No module named &#39;numpy&#39;</code></p></blockquote><ul><li><strong>🔍 排查原因：</strong><br>  仔细看 PyCharm 终端的前缀带有 <code>PS</code>（PowerShell）。Windows 默认的 PowerShell 会拦截 Conda 的环境切换命令！虽然我输入了 <code>conda activate</code>，但底层根本没切过去，包全装到了全局环境里，导致我的专属环境成了无法调用的“幽灵”。</li><li><strong>✅ 终极解法：</strong><br>  放弃 IDE 底层的终端，直接打开 Windows 菜单里正宗的黑框框 <strong>Anaconda Prompt (anaconda3)</strong>。</li></ul><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 创建干净的 Python 3.8 环境</span></span><br><span class="line">conda create -n qcnn_thesis python=3.8 -y</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 激活环境（确保护体前缀变成 (qcnn_thesis)）</span></span><br><span class="line">conda activate qcnn_thesis</span><br></pre></td></tr></table></figure><hr><h2 id="🌐-踩坑二：网络玄学与-SSL-证书拦截"><a href="#🌐-踩坑二：网络玄学与-SSL-证书拦截" class="headerlink" title="🌐 踩坑二：网络玄学与 SSL 证书拦截"></a>🌐 踩坑二：网络玄学与 SSL 证书拦截</h2><p>环境建好了，准备一口气装完所有深度学习依赖包。结果清华源给我甩了一满屏的红字报错：</p><blockquote><p><code>SSLError(SSLZeroReturnError(6, &#39;TLS/SSL connection has been closed (EOF)&#39;))</code></p></blockquote><ul><li><strong>🔍 排查原因：</strong><br>  因为电脑后台可能挂着网络代理工具，Anaconda Prompt 对网络安全证书的校验极其严格。它发现流量被劫持后，出于保护机制直接切断了清华源的 HTTPS 下载请求。</li><li><strong>✅ 终极解法：</strong><br>  两步走：首先在终端里断开代理干扰，然后使用阿里云的纯 HTTP 镜像源，并附上免死金牌 <code>--trusted-host</code> 强行信任。</li></ul><figure class="highlight cmd"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">:: 清理终端代理干扰</span><br><span class="line"><span class="built_in">set</span> http_proxy=</span><br><span class="line"><span class="built_in">set</span> https_proxy=</span><br><span class="line"></span><br><span class="line">:: 强行使用阿里云免检源安装全家桶</span><br><span class="line">pip install tensorflow==<span class="number">2</span>.<span class="number">11</span>.<span class="number">0</span> pennylane scikit-learn numpy matplotlib -i [http://mirrors.aliyun.com/pypi/simple/](http://mirrors.aliyun.com/pypi/simple/) --trusted-host mirrors.aliyun.com</span><br></pre></td></tr></table></figure><p>看到一排排 <code>Successfully installed</code>，爽感拉满。</p><hr><h2 id="💥-踩坑三：致命的版本代沟（TypeError-崩溃）"><a href="#💥-踩坑三：致命的版本代沟（TypeError-崩溃）" class="headerlink" title="💥 踩坑三：致命的版本代沟（TypeError 崩溃）"></a>💥 踩坑三：致命的版本代沟（TypeError 崩溃）</h2><p>在 PyCharm 里绑定好环境后，满心欢喜地点击 Run，结果代码在加载量子库时当场暴毙，抛出一个极其底层的语法错误：</p><blockquote><p><code>TypeError: &#39;type&#39; object is not subscriptable</code></p></blockquote><ul><li><strong>🔍 排查原因：</strong><br>  这是典型的版本代沟问题。<code>pip install pennylane</code> 默认下载了最新版（比如 0.37.0+）。但最新版的 PennyLane 底层源码使用了 Python 3.9+ 才支持的新式类型提示（如 <code>tuple[list...]</code>）。而我为了兼容老版本的深度学习框架，使用的是极为经典的 <strong>Python 3.8</strong>，它读不懂这种“超前”语法。</li><li><strong>✅ 终极解法：直接降级，对症下药！</strong><br>  无需重装 Python，只需要把 PennyLane 回退到完美兼容 Python 3.8 的最后一个黄金大版本（<code>0.31.0</code>）：</li></ul><figure class="highlight cmd"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">pip install pennylane==<span class="number">0</span>.<span class="number">31</span>.<span class="number">0</span> -i [http://mirrors.aliyun.com/pypi/simple/](http://mirrors.aliyun.com/pypi/simple/) --trusted-host mirrors.aliyun.com</span><br></pre></td></tr></table></figure><p>系统非常聪明地连带卸载了冲突的底层包，并换上了完美兼容的 scipy 和 autograd。至此，环境彻底打通！</p><p><img src="https://204180371.xyz/PicGo/PixPin_2026-03-16_23-54-04.png" alt="pennylane回退"></p><hr><h2 id="🌅-拨云见日：CPU-下的完美收敛与可视化"><a href="#🌅-拨云见日：CPU-下的完美收敛与可视化" class="headerlink" title="🌅 拨云见日：CPU 下的完美收敛与可视化"></a>🌅 拨云见日：CPU 下的完美收敛与可视化</h2><p>排除了所有工程隐患后，再次运行 <code>main.py</code>。</p><p>这里补充一个反常识：对于这种小规模量子比特（8 Qubits）的经典-量子混合模拟实验，<strong>纯 CPU 环境比折腾 CUDA 和 GPU 更快、更稳</strong>。</p><p>终端里开始不断跳动 Loss 值：</p><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Loss History for QCNN circuits, U_SU4 pca8 with mse</span><br><span class="line">iteration:  0  cost:  1.03012949085544</span><br><span class="line">...</span><br><span class="line">iteration:  110  cost:  0.4897367779492629</span><br><span class="line">...</span><br><span class="line">Accuracy for U_SU4 pca8 : 0.9796690307328605</span><br></pre></td></tr></table></figure><p>经过 200 步的迭代，模型成功收敛，并在测试集上拿到了 <strong>97.96%</strong> 的惊艳准确率。这标志着我顺利完成了图像分类算法的 MVP（最小可行性产品）搭建！</p><p>最后，为了让实验数据更直观地体现在毕业论文里，我写了一段小脚本，用 <code>matplotlib</code> 将 <code>Result/result.txt</code> 里的数组提取成了学术风的折线图：</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line"></span><br><span class="line"><span class="comment"># 提取 txt 中的 Loss 数组</span></span><br><span class="line">loss_history = [<span class="number">1.0301</span>, <span class="number">0.9832</span>, <span class="number">1.0149</span>, ..., <span class="number">0.4375</span>] <span class="comment"># 此处省略中间数据</span></span><br><span class="line"></span><br><span class="line">plt.style.use(<span class="string">&#x27;seaborn-v0_8-darkgrid&#x27;</span>) </span><br><span class="line">plt.figure(figsize=(<span class="number">10</span>, <span class="number">6</span>))</span><br><span class="line"></span><br><span class="line"><span class="comment"># 绘制折线图</span></span><br><span class="line">plt.plot(loss_history, label=<span class="string">&#x27;QCNN (U_SU4, PCA8)&#x27;</span>, color=<span class="string">&#x27;#1f77b4&#x27;</span>, linewidth=<span class="number">2</span>, marker=<span class="string">&#x27;o&#x27;</span>, markersize=<span class="number">3</span>, alpha=<span class="number">0.8</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 设置图表元素</span></span><br><span class="line">plt.title(<span class="string">&#x27;Training Loss of Hybrid QCNN on MNIST Dataset&#x27;</span>, fontsize=<span class="number">14</span>, fontweight=<span class="string">&#x27;bold&#x27;</span>, pad=<span class="number">15</span>)</span><br><span class="line">plt.xlabel(<span class="string">&#x27;Training Steps&#x27;</span>, fontsize=<span class="number">12</span>)</span><br><span class="line">plt.ylabel(<span class="string">&#x27;Mean Squared Error (MSE) Loss&#x27;</span>, fontsize=<span class="number">12</span>)</span><br><span class="line">plt.legend(fontsize=<span class="number">11</span>)</span><br><span class="line">plt.grid(<span class="literal">True</span>, linestyle=<span class="string">&#x27;--&#x27;</span>, alpha=<span class="number">0.7</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># 显示图像</span></span><br><span class="line">plt.tight_layout()</span><br><span class="line">plt.show()</span><br></pre></td></tr></table></figure><hr><h2 id="📌-总结"><a href="#📌-总结" class="headerlink" title="📌 总结"></a>📌 总结</h2><p>做工程复现，往往 80% 的精力花在配环境和解 Bug 上，20% 的时间在跑模型。但正是这些踩过的坑，补全了我们在学校课堂里学不到的工程鲁棒性思维。</p><p>接下来，我准备在此 Baseline 的基础上，引入 <strong>Fashion MNIST</strong> 数据集和自编码器（Autoencoder）降维方法进行进一步的对比实验，继续推进我的毕业论文，敬请期待！</p>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;&lt;img src=&quot;https://204180371.xyz/PicGo/D9A8D7A0140D79A8A2705B88C9153F68.jpg&quot; alt=&quot;封面&quot;&gt;&lt;/p&gt;
+&lt;h1 id=&quot;从零跑通-QCNN-图像分类：混合量子神经网络复现踩坑全纪录&quot;&gt;&lt;a href</summary>
+      
+    
+    
+    
+    
+    <category term="机器学习" scheme="https://cand1elight.github.io/tags/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/"/>
+    
+    <category term="量子计算" scheme="https://cand1elight.github.io/tags/%E9%87%8F%E5%AD%90%E8%AE%A1%E7%AE%97/"/>
+    
+    <category term="QCNN" scheme="https://cand1elight.github.io/tags/QCNN/"/>
+    
+    <category term="踩坑记录" scheme="https://cand1elight.github.io/tags/%E8%B8%A9%E5%9D%91%E8%AE%B0%E5%BD%95/"/>
+    
+    <category term="Python" scheme="https://cand1elight.github.io/tags/Python/"/>
+    
+  </entry>
   
   <entry>
     <title>尝试机器学习和深度学习</title>
@@ -497,26 +528,6 @@
     <category term="算法" scheme="https://cand1elight.github.io/tags/%E7%AE%97%E6%B3%95/"/>
     
     <category term="字符串" scheme="https://cand1elight.github.io/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>随机封面测试</title>
-    <link href="https://cand1elight.github.io/posts/bf5247c3.html"/>
-    <id>https://cand1elight.github.io/posts/bf5247c3.html</id>
-    <published>2025-01-30T13:32:40.000Z</published>
-    <updated>2025-01-30T14:24:46.895Z</updated>
-    
-    <content type="html"><![CDATA[<p>诶多……☆是♡同♡类♡呢♡喵♪（由乃逆光捧脸.jpg）那群八嘎是不会懂的呀……关于「二次元の美好」♡呐，如果说吾の存在有意义的话、那一定是因为「二·次·元」吧☆？所以呢——妄图污染这份「爱」的人类、都会被吾「抹」「杀」「掉」喔♪（小声）嘛……讨厌二次元的八嘎三次元最恶心了啊魂淡！★</p><p>呐、二次元の民那……都·是·最·最·善·良·の·存·在·呐☆多洗忒……要「嘲笑」这样的孩子呢？吾辈不明白啊——？嘛……说到底，你们都只是污秽の「来自三次元的大人」吧？大人什么的、最·讨·厌·了★♪</p><p>啊嘞啊嘞QAQ？多洗忒……欧尼酱ww？呐、桥豆麻袋……已经「厌烦」吾辈了嘛？哼唧……真是「冷·酷·の·人」呢QuQ——☆(๑°⌓°๑)嘛……即便是这样的哇达西，一定也是有「存·在·の·意·义」的吧、内~★快来「肯定」啊？不然呀……咱可就要「黑化」了哦♪呐？#(太开心)</p><p>呐。。。（伸出的小手又迅速垂下去）嗦嘎（表情有点失落），米娜桑已经不喜欢了呀（紧咬嘴唇），得磨，米娜桑忘了当初吗（握紧小手），莫以得丝（强忍住眼泪），已经大丈夫了呦（挤出笑脸），瓦大喜瓦，滋多滋多，滋多滋多（语气越来越用力了）滋多戴斯给！！！一滋嘛叠磨瓦撕裂嘛赛！！！至死都不会瓦斯裂嘛斯（认真的表情）</p><p>诶多……看起来阁下对于「二·次·元」の理解、似·乎·满·是·谬·误·哦☆~！嘛，连最为基本の「礼♪义♪廉♪耻♪」都早已失去了啊……♪（笑）呐，我说啊——这样のkimino、也会有自称「二♡次♡元」の资格吗★？fufufu——说到底、阁下已经「二·次·元·失·格」了吧？呐~♪#(太开心)</p><p>唔噗噗~汝等「劣·等·生·物」……也配去「妄想」吗？呐、「真正的二次元」什么的— —吾辈看汝是一点都不懂啊☆ （笑）嘛嘛嘛……不过看着汝试图伪装成「二次元」の可笑姿态，倒是让吾辈对于「三·次·元·的·白·痴」稍微有了些许兴趣哦？★【图片】诶多……☆是♡同♡类♡呢♡喵♪（由乃逆光捧脸.jpg）那群八嘎是不会懂的呀……关于「二次元の美好」♡呐，如果说吾の存在有意义的话、那一定是因为「二·次·元」吧☆？所以呢——妄图污染这份「爱」的人类、都会被吾「抹」「杀」「掉」喔♪（小声）嘛……讨厌二次元的八嘎三次元最恶心了啊魂淡！★</p><p>呐、二次元の民那……都·是·最·最·善·良·の·存·在·呐☆多洗忒……要「嘲笑」这样的孩子呢？吾辈不明白啊——？嘛……说到底，你们都只是污秽の「来自三次元的大人」吧？大人什么的、最·讨·厌·了★♪</p><p>啊嘞啊嘞QAQ？多洗忒……欧尼酱ww？呐、桥豆麻袋……已经「厌烦」吾辈了嘛？哼唧……真是「冷·酷·の·人」呢QuQ——☆(๑°⌓°๑)嘛……即便是这样的哇达西，一定也是有「存·在·の·意·义」的吧、内~★快来「肯定」啊？不然呀……咱可就要「黑化」了哦♪呐？</p><p>呐。。。（伸出的小手又迅速垂下去）嗦嘎（表情有点失落），米娜桑已经不喜欢了呀（紧咬嘴唇），得磨，米娜桑忘了当初吗（握紧小手），莫以得丝（强忍住眼泪），已经大丈夫了呦（挤出笑脸），瓦大喜瓦，滋多滋多，滋多滋多（语气越来越用力了）滋多戴斯给！！！一滋嘛叠磨瓦撕裂嘛赛！！！至死都不会瓦斯裂嘛斯（认真的表情）</p><p>诶多……看起来阁下对于「二·次·元」の理解、似·乎·满·是·谬·误·哦☆~！嘛，连最为基本の「礼♪义♪廉♪耻♪」都早已失去了啊……♪（笑）呐，我说啊——这样のkimino、也会有自称「二♡次♡元」の资格吗★？fufufu——说到底、阁下已经「二·次·元·失·格」了吧？呐~♪</p><p>唔噗噗~汝等「劣·等·生·物」……也配去「妄想」吗？呐、「真正的二次元」什么的— —吾辈看汝是一点都不懂啊☆ （笑）嘛嘛嘛……不过看着汝试图伪装成「二次元」の可笑姿态，倒是让吾辈对于「三·次·元·的·白·痴」稍微有了些许兴趣哦？★【图片】诶多……☆是♡同♡类♡呢♡喵♪（由乃逆光捧脸.jpg）那群八嘎是不会懂的呀……关于「二次元の美好」♡呐，如果说吾の存在有意义的话、那一定是因为「二·次·元」吧☆？所以呢——妄图污染这份「爱」的人类、都会被吾「抹」「杀」「掉」喔♪（小声）嘛……讨厌二次元的八嘎三次元最恶心了啊魂淡！★</p><p>呐、二次元の民那……都·是·最·最·善·良·の·存·在·呐☆多洗忒……要「嘲笑」这样的孩子呢？吾辈不明白啊——？嘛……说到底，你们都只是污秽の「来自三次元的大人」吧？大人什么的、最·讨·厌·了★♪</p><p>啊嘞啊嘞QAQ？多洗忒……欧尼酱ww？呐、桥豆麻袋……已经「厌烦」吾辈了嘛？哼唧……真是「冷·酷·の·人」呢QuQ——☆(๑°⌓°๑)嘛……即便是这样的哇达西，一定也是有「存·在·の·意·义」的吧、内~★快来「肯定」啊？不然呀……咱可就要「黑化」了哦♪呐？#(太开心)</p><p>吶吶吶，米娜桑，扣祢起哇，瓦込西二刺猿の焼酒嚏!あああ，辻我仞一-起守択，最好の二刺猿肥!吶吶，不憧我的，愚蠢の人炎們呵，果畔那塞，我二刺猿の焼酒是不会和祢有共同語言的jio豆麻袋,込祥子垪活有什幺錯喝?吶,告泝我呵。搜嚆,祢仞已経不喜炊了呵..真是冷酷の人昵,果鮮納塞,止祢看到不愉快のな西了。像我送祥的人,果然消失就好了昵。也午只有在二次元的世界里,オ有真正的美好存在的肥,吶?ねぇねぇねぇ，果然灰悪了呵，帯jio不，瓦込西，二刺猿の焼酒!博古哇zeidei不会人輸!米娜桑!吶!瓦込西二刺猿ぁぁ!哦晦吻扣賽伊弓斯!吶吶吶!米娜桑!我要幵劫了~一キ打去咢死!诶多诶多~「多洗忒」?为什么要「妄.图.抹.杀」这样的「自己」呢?★(笑)呐、「中二病的你」也好、「二次元的你」也好….「全部」daisuki~呐~二次元民那赛高desuwa!今后也.请.多.多.指.教.喔?~啊啊……是♡鲜♡血♡の♡味♡道♡呐♡~！（眯眼笑）kukuku——汝の「血」、会是什么样的「气味」呢☆？诶多多~说着说着有些期待了呢♪品尝「挚·爱·之·人」の「鲜血」什么的~嘛……如果是「你」的话，一定可以的!</p>]]></content>
-    
-    
-      
-      
-    <summary type="html">&lt;p&gt;诶多……☆是♡同♡类♡呢♡喵♪（由乃逆光捧脸.jpg）那群八嘎是不会懂的呀……关于「二次元の美好」♡呐，如果说吾の存在有意义的话、那一定是因为「二·次·元」吧☆？所以呢——妄图污染这份「爱」的人类、都会被吾「抹」「杀」「掉」喔♪（小声）嘛……讨厌二次元的八嘎三次元最恶心了啊</summary>
-      
-    
-    
-    
     
   </entry>
   
