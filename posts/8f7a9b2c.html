@@ -1,0 +1,365 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record | 祝炩烟's Blog</title><meta name="author" content="祝炩烟"><meta name="copyright" content="祝炩烟"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record   🛠️ 实验背景与核心目标  本次实验旨在构建一套基于 LSTM（长短期记忆网络）的动态量化对冲引擎。初始设想是通过深度学习模型捕捉金融时间序列中的非线性规">
+<meta property="og:type" content="article">
+<meta property="og:title" content="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record">
+<meta property="og:url" content="https://cand1elight.github.io/posts/8f7a9b2c.html">
+<meta property="og:site_name" content="祝炩烟&#39;s Blog">
+<meta property="og:description" content="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record   🛠️ 实验背景与核心目标  本次实验旨在构建一套基于 LSTM（长短期记忆网络）的动态量化对冲引擎。初始设想是通过深度学习模型捕捉金融时间序列中的非线性规">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg">
+<meta property="article:published_time" content="2026-03-30T14:00:00.000Z">
+<meta property="article:modified_time" content="2026-03-30T12:33:27.924Z">
+<meta property="article:author" content="祝炩烟">
+<meta property="article:tag" content="量化交易">
+<meta property="article:tag" content="深度学习">
+<meta property="article:tag" content="数据工程">
+<meta property="article:tag" content="LSTM">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record",
+  "url": "https://cand1elight.github.io/posts/8f7a9b2c.html",
+  "image": "https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg",
+  "datePublished": "2026-03-30T14:00:00.000Z",
+  "dateModified": "2026-03-30T12:33:27.924Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "祝炩烟",
+      "url": "https://cand1elight.github.io/"
+    }
+  ]
+}</script><link rel="shortcut icon" href="https://204180371.xyz/PicGo/youzi.png"><link rel="canonical" href="https://cand1elight.github.io/posts/8f7a9b2c.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":true,"top_n_per_article":3,"unescape":false,"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css" media="defer" onload="this.media='all'"><!-- hexo injector head_end start --><link rel="stylesheet" href="https://npm.elemecdn.com/anzhiyu-blog@2.0.4/css/runtime/runtime.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.css" /><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/animate.min.css" media="print" onload="this.media='screen'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/font-awesome-animation.min.css" media="defer" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/tag_plugins.css" media="defer" onload="this.media='all'"><script src="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/carousel-touch.js"></script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body><div id="web_bg" style="background-image: url(https://204180371.xyz/PicGo/fulilian.jpg);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">23</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">15</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="https://204180371.xyz/PicGo/youzi.png" alt="Logo"><span class="site-name">祝炩烟's Blog</span></a><a class="nav-page-title" href="/"><span class="site-name">From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-03-30T14:00:00.000Z" title="发表于 2026-03-30 22:00:00">2026-03-30</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-03-30T12:33:27.924Z" title="更新于 2026-03-30 20:33:27">2026-03-30</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%A4%8D%E7%9B%98/">技术复盘</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p><img src="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg" alt="封面" style="width:100%; border-radius:8px; margin-bottom: 20px;"></p>
+<h1>From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</h1>
+
+<div class="simple-card">
+<h4>🛠️ 实验背景与核心目标</h4>
+<div class="content" style="margin-bottom: 15px;">
+<p>本次实验旨在构建一套基于 LSTM（长短期记忆网络）的动态量化对冲引擎。初始设想是通过深度学习模型捕捉金融时间序列中的非线性规律，从而指导实盘交易。然而在工程落地过程中，遭遇了高频摩擦成本、数据源封锁以及严重的模型过拟合问题。特撰写此报告，对系统底层的工程缺陷进行剥洋葱式的技术复盘。</p>
+</div>
+<div class="content">
+<p><b>实验环境：</b> Python 3.x, PyTorch, Pandas, AKShare, yfinance<br>
+<b>初始输入特征：</b> 13 维技术指标矩阵（OHLCV, MACD, RSI_14, Bollinger Bands, EMA_7/14/21）<br>
+<b>预测标签：</b> 未来 5 日预期收益率</p>
+</div>
+</div>
+
+<div style="height: 40px; clear: both; width: 100%;"></div>
+
+<h1>系统架构与工程排雷</h1>
+
+<div class="simple-card">
+<h4>📉 1. 标的降维：从个股 Alpha 到宏观 Beta 与摩擦成本</h4>
+<div class="content">
+<p>在 V1.0 版本的个股预测模型中，回测资金曲线呈现出持续的单边下行。通过对交易日志的拆解发现，核心溃败点在于<b>交易摩擦成本</b>。A股个股交易面临约 <b>0.2%</b>（千分之二）的综合摩擦（印花税+佣金）。由于 AI 预测信号触发频繁，策略在震荡市中陷入了反复的高频亏损交易（Whipsaw）。</p>
+<p><b>工程修正：</b> 果断放弃微观个股的 Alpha 挖掘，将底层资产池重构为四只场内宏观 ETF（纳指、标普500、沪深300、黄金）。场内 ETF 免除印花税，摩擦成本骤降至 <b>0.02%</b>（万分之二），为中低频的策略轮动释放了必要的利润空间。</p>
+</div>
+</div>
+
+<div style="height: 30px;"></div>
+
+<div class="simple-card">
+<h4>🌐 2. 数据管道攻防：突破 WAF 与反爬虫限流</h4>
+<div class="content">
+<p>在获取训练所需的 OHLCV 数据时，数据管道遭遇了极其严重的可用性危机。量化系统的护城河首先是数据的洁净度与连贯性。本次实验经历了三次数据源迭代：</p>
+<ul>
+    <li><b>AKShare (东方财富 API)：</b> 遭遇 IP 频率限流（Rate Limiting）。单 IP 高频请求直接被交易所 WAF 阻断，返回 <code>RemoteDisconnected</code> 错误。</li>
+    <li><b>yfinance (雅虎财经海外节点)：</b> 尝试通过代理节点绕过，但因海外代理 IP 池被大量公共爬虫污染，触发了 Cloudflare 的 <code>429 Too Many Requests</code> 连坐封锁。</li>
+    <li><b>Baostock (底层 TCP 直连)：</b> 虽解决了反爬问题，但该学术库缺乏跨境 ETF 与商品 ETF 的底层数据。</li>
+    <li><b>最终解决方案：</b> 抛弃高层封装库，使用 <code>requests</code> 模块直接重写 HTTP 爬虫，劫持腾讯财经的底层图文分发 CDN（GTImg）。利用其服务庞大移动端并发的特性，成功打穿防线，获取了完整的 ETF 日线级别历史数据。</li>
+</ul>
+</div>
+</div>
+
+<div style="height: 40px; clear: both; width: 100%;"></div>
+
+<h1>核心算法缺陷剖析</h1>
+
+<div class="simple-card" style="border-left: 5px solid #2196F3;">
+<h4>⚠️ 3. 统计学陷阱：归一化视野错位 (The Scaler Bug)</h4>
+<div class="content">
+<p>模型在训练集上收敛极佳（MSE 降至 0.0006 左右），但在实盘滑动窗口回测中，AI 交易员长期保持空仓（1.0000 净值水平）。深度排查后发现，这是由于<b>训练环境与推理环境的数据处理逻辑撕裂</b>导致的。</p>
+<p>训练时，<code>MinMaxScaler</code> 是基于 3 年全局历史数据进行 <code>fit_transform</code>，建立的是全局最高/最低点的比例尺；而在回测推理阶段，代码错误地每天对 <code>past_20_days</code> 的切片进行局部归一化。这导致输入模型的张量（Tensor）比例尺发生严重形变，AI 将局部的微小波动误判为历史级别的极值，从而触发了防御性的“看空”机制。</p>
+</div>
+</div>
+
+<div style="height: 30px;"></div>
+
+<div class="simple-card" style="border-left: 5px solid #ff5722;">
+<h4>⚠️ 4. 周期撕裂与过度拟合 (Overfitting)</h4>
+<div class="content">
+<p>即使修复了全局归一化 Bug，策略依然跑输了买入持有（Buy and Hold）基准。原因在于逻辑周期的不匹配：</p>
+<p>模型的预测目标 <code>Y</code> 是“未来 5 日收益率”，本质是一个周级别（Weekly）的趋势预测器；但回测引擎的交易逻辑却是日频（Daily）的。这导致 AI 只要在日内受到噪音干扰产生轻微的预测值下调，引擎就会触发交割卖出，强行把战略级模型降维成了高频割肉机。</p>
+<p>同时，在面对亏损时，试图通过硬编码微调止损阈值（如从 -3% 调至 -5%）和持仓天数的方法，本质上属于<b>数据窥探偏误（Data Snooping Bias）</b>。这种对着历史验证集“画靶”的行为，必然丧失样本外（Out-of-Sample）的泛化能力。</p>
+</div>
+</div>
+
+<div style="height: 40px;"></div>
+
+<div class="simple-card" style="background: #fafafa; padding: 20px; border-radius: 8px;">
+<div class="thought-section" style="display: flex; align-items: flex-start;">
+<div style="font-size: 24px; color: #4CAF50; margin-right: 15px; min-width: 30px;"><i class="fas fa-terminal"></i></div>
+<div>
+<h4 style="margin: 0 0 5px 0;">Next Steps: 转向基于规则的动量系统</h4>
+<div class="content">
+<p>本次实验证明：在市场高度有效且单边趋势主导的宏观标的（如美股指数）中，单纯依赖裸量价（OHLCV）数据训练深度学习网络去预测短线方向，鲁棒性极差。</p>
+<p><b>后续架构重构方向：</b></p>
+<ol>
+    <li>放弃基于黑盒预测的短线博弈模型。</li>
+    <li>转向开发基于严密数学规则的<b>双动量轮动系统（Dual Momentum）</b>。</li>
+    <li>利用绝对动量过滤系统性熊市，利用相对动量在四大 ETF 之间实现强势轮动，将重心从“预测价格”彻底转向“顺应趋势与风险管理”。</li>
+</ol>
+</div>
+</div>
+</div>
+</div></article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io">祝炩烟</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io/posts/8f7a9b2c.html">https://cand1elight.github.io/posts/8f7a9b2c.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://cand1elight.github.io" target="_blank">祝炩烟's Blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E9%87%8F%E5%8C%96%E4%BA%A4%E6%98%93/">量化交易</a><a class="post-meta__tags" href="/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/">深度学习</a><a class="post-meta__tags" href="/tags/%E6%95%B0%E6%8D%AE%E5%B7%A5%E7%A8%8B/">数据工程</a><a class="post-meta__tags" href="/tags/LSTM/">LSTM</a></div><div class="post-share"><div class="social-share" data-image="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/3069dbbd.html" title="尝试机器学习和深度学习"><img class="cover" src="https://204180371.xyz/PicGo/105CA4DF96921225CC2C17F4C62B37BF.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-01-30</div><div class="info-item-2">尝试机器学习和深度学习</div></div><div class="info-2"><div class="info-item-1"> 尝试机器学习和深度学习   🛠️ 环境配置与起步  今天先学习了环境的配置，先是安装的Python、pycharm、anaconda，没想到时至今日，仍然在用我初学时的Python3.8，怎么不像是回首看了眼自己呢，只是回首后发现，原来的自己仍然在自己的身边，我这么多年，并没有走出多远。   安装库，使用显卡对应的驱动，时代总是在变化，课程中所谓的富哥用的3060早已停产，就连我用的4060都已经停产，时代不等人，或许那个教学视频的使用期限也就止步今年了，不过还好，我赶上了末班车，没浪费。希望后续不会出现差错吧。  📅 学习节奏  Daily: 2 Hours   每天两小时的学习，再看看电子书，充实一下自己吧，后续我人生中这样的时间也不多了。哈哈哈，当然还是希望以后能多一些休闲的时间。      末尾   💭...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">祝炩烟</div><div class="author-info-description">记录日常与学习过程的点点滴滴，分享知识与思考。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">23</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">15</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Cand1eLight"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon faa-parent animated-hover" href="https://github.com/Cand1eLight" target="_blank" title="Github"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-gitHub"></use></svg></a><a class="social-icon faa-parent animated-hover" href="https://space.bilibili.com/3546557553052060" target="_blank" title="BiliBili"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili"></use></svg></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">Welcome to my blog!
+记录一些日常和学习的记录!
+Ciallo～(∠・ω< )⌒☆
+</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">1.</span> <span class="toc-text">From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-number">1.0.0.1.</span> <span class="toc-text">🛠️ 实验背景与核心目标</span></a></li></ol></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">2.</span> <span class="toc-text">系统架构与工程排雷</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-number">2.0.0.1.</span> <span class="toc-text">📉 1. 标的降维：从个股 Alpha 到宏观 Beta 与摩擦成本</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-number">2.0.0.2.</span> <span class="toc-text">🌐 2. 数据管道攻防：突破 WAF 与反爬虫限流</span></a></li></ol></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">3.</span> <span class="toc-text">核心算法缺陷剖析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-number">3.0.0.1.</span> <span class="toc-text">⚠️ 3. 统计学陷阱：归一化视野错位 (The Scaler Bug)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-number">3.0.0.2.</span> <span class="toc-text">⚠️ 4. 周期撕裂与过度拟合 (Overfitting)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-number">3.0.0.3.</span> <span class="toc-text">Next Steps: 转向基于规则的动量系统</span></a></li></ol></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/posts/8f7a9b2c.html" title="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record"><img src="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record"/></a><div class="content"><a class="title" href="/posts/8f7a9b2c.html" title="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record">From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</a><time datetime="2026-03-30T14:00:00.000Z" title="发表于 2026-03-30 22:00:00">2026-03-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/1d7390fa.html" title="量子-机器学习QCNN代码复现"><img src="https://204180371.xyz/PicGo/D9A8D7A0140D79A8A2705B88C9153F68.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="量子-机器学习QCNN代码复现"/></a><div class="content"><a class="title" href="/posts/1d7390fa.html" title="量子-机器学习QCNN代码复现">量子-机器学习QCNN代码复现</a><time datetime="2026-03-16T15:46:08.000Z" title="发表于 2026-03-16 23:46:08">2026-03-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/3069dbbd.html" title="尝试机器学习和深度学习"><img src="https://204180371.xyz/PicGo/105CA4DF96921225CC2C17F4C62B37BF.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="尝试机器学习和深度学习"/></a><div class="content"><a class="title" href="/posts/3069dbbd.html" title="尝试机器学习和深度学习">尝试机器学习和深度学习</a><time datetime="2026-01-30T14:56:26.000Z" title="发表于 2026-01-30 22:56:26">2026-01-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/db47ba97.html" title="倒计时172天|建立体系，根据体系行动"><img src="https://api.mtyqx.cn/api/random.php" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="倒计时172天|建立体系，根据体系行动"/></a><div class="content"><a class="title" href="/posts/db47ba97.html" title="倒计时172天|建立体系，根据体系行动">倒计时172天|建立体系，根据体系行动</a><time datetime="2025-07-02T15:37:47.000Z" title="发表于 2025-07-02 23:37:47">2025-07-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/2dec86d2.html" title="倒计时179天 | 不到半年时间"><img src="https://204180371.xyz/PicGo/5D710979D3C8E233C71A8B69F64F1245.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="倒计时179天 | 不到半年时间"/></a><div class="content"><a class="title" href="/posts/2dec86d2.html" title="倒计时179天 | 不到半年时间">倒计时179天 | 不到半年时间</a><time datetime="2025-06-26T15:31:37.000Z" title="发表于 2025-06-26 23:31:37">2025-06-26</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2025 - 2026 By 祝炩烟</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><div class="js-pjax"></div><div class="aplayer no-destroy" data-id="8152976493" data-server="netease" data-type="playlist"
+data-order="list" data-fixed="true" data-preload="auto" data-autoplay="false" data-mutex="true"></div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/metingjs/dist/Meting.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索………" type="text"/></div></div><hr/><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></div><!-- hexo injector body_end start --><script data-pjax>
+  function butterfly_footer_beautify_injector_config(){
+    var parent_div_git = document.getElementById('footer-wrap');
+    var item_html = '<div id="workboard"></div><p id="ghbdages"><a class="github-badge" target="_blank" href="https://hexo.io/" style="margin-inline:5px" data-title="博客框架为Hexo_v5.4.0" title=""><img src="https://img.shields.io/badge/Frame-Hexo-blue?style=flat&amp;logo=hexo" alt=""/></a><a class="github-badge" target="_blank" href="https://butterfly.js.org/" style="margin-inline:5px" data-title="主题版本Butterfly_v4.2.2" title=""><img src="https://img.shields.io/badge/Theme-Butterfly-6513df?style=flat&amp;logo=bitdefender" alt=""/></a><a class="github-badge" target="_blank" href="https://www.jsdelivr.com/" style="margin-inline:5px" data-title="本站使用JsDelivr为静态资源提供CDN加速" title=""><img src="https://img.shields.io/badge/CDN-jsDelivr-orange?style=flat&amp;logo=jsDelivr" alt=""/></a><a class="github-badge" target="_blank" href="https://github.com/" style="margin-inline:5px" data-title="本站项目由Github托管" title=""><img src="https://img.shields.io/badge/Source-Github-d021d6?style=flat&amp;logo=GitHub" alt=""/></a><a class="github-badge" target="_blank" href="http://creativecommons.org/licenses/by-nc-sa/4.0/" style="margin-inline:5px" data-title="本站采用知识共享署名-非商业性使用-相同方式共享4.0国际许可协议进行许可" title=""><img src="https://img.shields.io/badge/Copyright-BY--NC--SA%204.0-d42328?style=flat&amp;logo=Claris" alt=""/></a></p>';
+    console.log('已挂载butterfly_footer_beautify')
+    parent_div_git.insertAdjacentHTML("beforeend",item_html)
+    }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var flag = 0;
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_footer_beautify_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_footer_beautify_injector_config();
+  }
+  </script><script async src="/js/runtime/runtime.js"></script><script data-pjax>
+  function butterfly_clock_anzhiyu_injector_config(){
+    var parent_div_git = document.getElementsByClassName('sticky_layout')[0];
+    var item_html = '<div class="card-widget card-clock"><div class="card-glass"><div class="card-background"><div class="card-content"><div id="hexo_electric_clock"><img class="entered loading" id="card-clock-loading" src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/loading.gif" style="height: 120px; width: 100%;" data-ll-status="loading"/></div></div></div></div></div>';
+    console.log('已挂载butterfly_clock_anzhiyu')
+    if(parent_div_git) {
+      parent_div_git.insertAdjacentHTML("afterbegin",item_html)
+    }
+  }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var qweather_key = 'f7394b7c1a5446feb791aedeecba4ecc';
+  var gaud_map_key = '66a3f75fe3a288fca105be2131c0ea6e';
+  var baidu_ak_key = 'undefined';
+  var flag = 0;
+  var clock_rectangle = '112.6534116,27.96920845';
+  var clock_default_rectangle_enable = 'true';
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  </script><script src="https://widget.qweather.net/simple/static/js/he-simple-common.js?v=2.0"></script><script data-pjax src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.js"></script><div class="js-pjax"><script async="async">var arr = document.getElementsByClassName('recent-post-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '30');
+    arr[i].setAttribute('data-wow-iteration', '1');
+  }</script><script async="async">var arr = document.getElementsByClassName('card-widget');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('article-sort-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__slideInRight');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script></div><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow.min.js"></script><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow_init.js"></script><script async src="/js/ali_font.js"></script><!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/koharu.model.json"},"display":{"position":"left","width":150,"height":850},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/"});</script></body></html>

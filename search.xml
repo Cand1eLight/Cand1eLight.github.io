@@ -4,6 +4,37 @@
   
     
     <entry>
+      <title>From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</title>
+      <link href="/posts/8f7a9b2c.html"/>
+      <url>/posts/8f7a9b2c.html</url>
+      
+        <content type="html"><![CDATA[<p><img src="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg" alt="封面" style="width:100%; border-radius:8px; margin-bottom: 20px;"></p><h1>From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</h1><div class="simple-card"><h4>🛠️ 实验背景与核心目标</h4><div class="content" style="margin-bottom: 15px;"><p>本次实验旨在构建一套基于 LSTM（长短期记忆网络）的动态量化对冲引擎。初始设想是通过深度学习模型捕捉金融时间序列中的非线性规律，从而指导实盘交易。然而在工程落地过程中，遭遇了高频摩擦成本、数据源封锁以及严重的模型过拟合问题。特撰写此报告，对系统底层的工程缺陷进行剥洋葱式的技术复盘。</p></div><div class="content"><p><b>实验环境：</b> Python 3.x, PyTorch, Pandas, AKShare, yfinance<br><b>初始输入特征：</b> 13 维技术指标矩阵（OHLCV, MACD, RSI_14, Bollinger Bands, EMA_7/14/21）<br><b>预测标签：</b> 未来 5 日预期收益率</p></div></div><div style="height: 40px; clear: both; width: 100%;"></div><h1>系统架构与工程排雷</h1><div class="simple-card"><h4>📉 1. 标的降维：从个股 Alpha 到宏观 Beta 与摩擦成本</h4><div class="content"><p>在 V1.0 版本的个股预测模型中，回测资金曲线呈现出持续的单边下行。通过对交易日志的拆解发现，核心溃败点在于<b>交易摩擦成本</b>。A股个股交易面临约 <b>0.2%</b>（千分之二）的综合摩擦（印花税+佣金）。由于 AI 预测信号触发频繁，策略在震荡市中陷入了反复的高频亏损交易（Whipsaw）。</p><p><b>工程修正：</b> 果断放弃微观个股的 Alpha 挖掘，将底层资产池重构为四只场内宏观 ETF（纳指、标普500、沪深300、黄金）。场内 ETF 免除印花税，摩擦成本骤降至 <b>0.02%</b>（万分之二），为中低频的策略轮动释放了必要的利润空间。</p></div></div><div style="height: 30px;"></div><div class="simple-card"><h4>🌐 2. 数据管道攻防：突破 WAF 与反爬虫限流</h4><div class="content"><p>在获取训练所需的 OHLCV 数据时，数据管道遭遇了极其严重的可用性危机。量化系统的护城河首先是数据的洁净度与连贯性。本次实验经历了三次数据源迭代：</p><ul>    <li><b>AKShare (东方财富 API)：</b> 遭遇 IP 频率限流（Rate Limiting）。单 IP 高频请求直接被交易所 WAF 阻断，返回 <code>RemoteDisconnected</code> 错误。</li>    <li><b>yfinance (雅虎财经海外节点)：</b> 尝试通过代理节点绕过，但因海外代理 IP 池被大量公共爬虫污染，触发了 Cloudflare 的 <code>429 Too Many Requests</code> 连坐封锁。</li>    <li><b>Baostock (底层 TCP 直连)：</b> 虽解决了反爬问题，但该学术库缺乏跨境 ETF 与商品 ETF 的底层数据。</li>    <li><b>最终解决方案：</b> 抛弃高层封装库，使用 <code>requests</code> 模块直接重写 HTTP 爬虫，劫持腾讯财经的底层图文分发 CDN（GTImg）。利用其服务庞大移动端并发的特性，成功打穿防线，获取了完整的 ETF 日线级别历史数据。</li></ul></div></div><div style="height: 40px; clear: both; width: 100%;"></div><h1>核心算法缺陷剖析</h1><div class="simple-card" style="border-left: 5px solid #2196F3;"><h4>⚠️ 3. 统计学陷阱：归一化视野错位 (The Scaler Bug)</h4><div class="content"><p>模型在训练集上收敛极佳（MSE 降至 0.0006 左右），但在实盘滑动窗口回测中，AI 交易员长期保持空仓（1.0000 净值水平）。深度排查后发现，这是由于<b>训练环境与推理环境的数据处理逻辑撕裂</b>导致的。</p><p>训练时，<code>MinMaxScaler</code> 是基于 3 年全局历史数据进行 <code>fit_transform</code>，建立的是全局最高/最低点的比例尺；而在回测推理阶段，代码错误地每天对 <code>past_20_days</code> 的切片进行局部归一化。这导致输入模型的张量（Tensor）比例尺发生严重形变，AI 将局部的微小波动误判为历史级别的极值，从而触发了防御性的“看空”机制。</p></div></div><div style="height: 30px;"></div><div class="simple-card" style="border-left: 5px solid #ff5722;"><h4>⚠️ 4. 周期撕裂与过度拟合 (Overfitting)</h4><div class="content"><p>即使修复了全局归一化 Bug，策略依然跑输了买入持有（Buy and Hold）基准。原因在于逻辑周期的不匹配：</p><p>模型的预测目标 <code>Y</code> 是“未来 5 日收益率”，本质是一个周级别（Weekly）的趋势预测器；但回测引擎的交易逻辑却是日频（Daily）的。这导致 AI 只要在日内受到噪音干扰产生轻微的预测值下调，引擎就会触发交割卖出，强行把战略级模型降维成了高频割肉机。</p><p>同时，在面对亏损时，试图通过硬编码微调止损阈值（如从 -3% 调至 -5%）和持仓天数的方法，本质上属于<b>数据窥探偏误（Data Snooping Bias）</b>。这种对着历史验证集“画靶”的行为，必然丧失样本外（Out-of-Sample）的泛化能力。</p></div></div><div style="height: 40px;"></div><div class="simple-card" style="background: #fafafa; padding: 20px; border-radius: 8px;"><div class="thought-section" style="display: flex; align-items: flex-start;"><div style="font-size: 24px; color: #4CAF50; margin-right: 15px; min-width: 30px;"><i class="fas fa-terminal"></i></div><div><h4 style="margin: 0 0 5px 0;">Next Steps: 转向基于规则的动量系统</h4><div class="content"><p>本次实验证明：在市场高度有效且单边趋势主导的宏观标的（如美股指数）中，单纯依赖裸量价（OHLCV）数据训练深度学习网络去预测短线方向，鲁棒性极差。</p><p><b>后续架构重构方向：</b></p><ol>    <li>放弃基于黑盒预测的短线博弈模型。</li>    <li>转向开发基于严密数学规则的<b>双动量轮动系统（Dual Momentum）</b>。</li>    <li>利用绝对动量过滤系统性熊市，利用相对动量在四大 ETF 之间实现强势轮动，将重心从“预测价格”彻底转向“顺应趋势与风险管理”。</li></ol></div></div></div></div>]]></content>
+      
+      
+      <categories>
+          
+          <category> 技术复盘 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 量化交易 </tag>
+            
+            <tag> 深度学习 </tag>
+            
+            <tag> 数据工程 </tag>
+            
+            <tag> LSTM </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>量子-机器学习QCNN代码复现</title>
       <link href="/posts/1d7390fa.html"/>
       <url>/posts/1d7390fa.html</url>
@@ -47,9 +78,9 @@
       
         <tags>
             
-            <tag> 机器学习 </tag>
-            
             <tag> 深度学习 </tag>
+            
+            <tag> 机器学习 </tag>
             
             <tag> 随笔 </tag>
             
@@ -478,11 +509,11 @@
     
     
     <entry>
-      <title>About</title>
-      <link href="/about/index.html"/>
-      <url>/about/index.html</url>
+      <title></title>
+      <link href="/js/runtime/runtime.js"/>
+      <url>/js/runtime/runtime.js</url>
       
-        <content type="html"><![CDATA[<h2 id="👋-Hi，我是祝炩烟！"><a href="#👋-Hi，我是祝炩烟！" class="headerlink" title="👋 Hi，我是祝炩烟！"></a><strong>👋 Hi，我是祝炩烟！</strong></h2><p>💡 我的签名是 <strong>“会当身由己，婉转入江湖”</strong>，这也是我的博客副标题！希望能在这个博客里，记录我的成长、探索与思考。</p><hr><h2 id="📜-关于本站"><a href="#📜-关于本站" class="headerlink" title="📜 关于本站"></a><strong>📜 关于本站</strong></h2><p>🎈 <strong>CandleLight 博客</strong>(<a href="https://cand1elight.github.io)是一个综合性的个人技术">https://cand1elight.github.io)是一个综合性的个人技术</a> &amp; 学术 &amp; 生活博客，主要分享：</p><ul><li><strong>💻 代码技术</strong>（Hexo/Vue/前端开发）</li><li><strong>📜 学习记录</strong>（日常学习、论文写作）</li><li><strong>📸 生活碎片</strong>（Plog、二次元安利）</li></ul><p>本站采用 <strong>Hexo + Butterfly 主题</strong>，如果你喜欢我的内容，欢迎交流～ 🥳</p><hr><h2 id="🛠️-博客配置"><a href="#🛠️-博客配置" class="headerlink" title="🛠️ 博客配置"></a><strong>🛠️ 博客配置</strong></h2><p>💻 <strong>博客搭建</strong>：</p><ul><li><strong>框架</strong>：Hexo + Butterfly</li><li><strong>前端</strong>：Vue、Tailwind CSS</li><li><strong>后端</strong>：Node.js</li><li><strong>存储</strong>：PicGo + 图床</li></ul><p>📡 <strong>访问方式</strong>：</p><ul><li>🌐 <strong>主站地址</strong>：<a href="https://cand1elight.github.io/">https://cand1elight.github.io/</a></li><li>📖 <strong>GitHub 博客仓库</strong>：<a href="https://github.com/Cand1eLight">GitHub</a></li></ul><hr><h2 id="🌈-个人兴趣"><a href="#🌈-个人兴趣" class="headerlink" title="🌈 个人兴趣"></a><strong>🌈 个人兴趣</strong></h2><p><strong>动漫 🎬</strong>：喜欢《葬送的芙莉莲》《EVA》《BanG Dream!It’s MyGO!!!!!》</p><p><strong>音乐 🎧</strong>：二次元 OST，Lo-Fi，chill</p><p><strong>运动 🏸</strong>：羽毛球、乒乓球</p><p><strong>数码 🖥️</strong>：编程、DIY 机械键盘、开源项目  </p><p><strong>游戏 🕹️</strong>：荒野大镖客2、艾尔登法环、黑神话悟空、星际拓荒、P5R</p><hr><h2 id="📮-联系我"><a href="#📮-联系我" class="headerlink" title="📮 联系我"></a><strong>📮 联系我</strong></h2><p>✉️ <strong>Email</strong>：<a href="204180371@qq.com">204180371@qq.com</a><br>💬 <strong>B 站</strong>：<a href="https://space.bilibili.com/3546557553052060">https://space.bilibili.com/3546557553052060</a>  </p>]]></content>
+        <content type="html"><![CDATA[var now = new Date();function createtime() {    // 设置起始时间    var startTime = new Date("01/27/2025 00:00:00");    now.setTime(now.getTime() + 250);    // 计算运行时间    var days = Math.floor((now - startTime) / 1e3 / 60 / 60 / 24); // 运行天数    var hours = Math.floor(((now - startTime) / 1e3 / 60 / 60) % 24); // 运行小时数    var minutes = Math.floor(((now - startTime) / 1e3 / 60) % 60); // 运行分钟数    var seconds = Math.round(((now - startTime) / 1e3) % 60); // 运行秒数    // 格式化为两位数    hours = hours < 10 ? "0" + hours : hours;    minutes = minutes < 10 ? "0" + minutes : minutes;    seconds = seconds < 10 ? "0" + seconds : seconds;    // 根据时间段设置显示内容    let displayContent = "";    if (hours >= 9 && hours < 18) {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-33-09.png' title='加油喵！'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    } else {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-31-48.png' title='休息喵……'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    }    // 更新页面内容    const workboard = document.getElementById("workboard");    if (workboard) {        workboard.innerHTML = displayContent;    }}// 每 250 毫秒更新一次setInterval(() => {    createtime();}, 250);]]></content>
       
     </entry>
     
@@ -501,21 +532,21 @@
     
     <entry>
       <title></title>
-      <link href="/js/runtime/runtime.js"/>
-      <url>/js/runtime/runtime.js</url>
+      <link href="/js/runtime/runtime.min.js"/>
+      <url>/js/runtime/runtime.min.js</url>
       
-        <content type="html"><![CDATA[var now = new Date();function createtime() {    // 设置起始时间    var startTime = new Date("01/27/2025 00:00:00");    now.setTime(now.getTime() + 250);    // 计算运行时间    var days = Math.floor((now - startTime) / 1e3 / 60 / 60 / 24); // 运行天数    var hours = Math.floor(((now - startTime) / 1e3 / 60 / 60) % 24); // 运行小时数    var minutes = Math.floor(((now - startTime) / 1e3 / 60) % 60); // 运行分钟数    var seconds = Math.round(((now - startTime) / 1e3) % 60); // 运行秒数    // 格式化为两位数    hours = hours < 10 ? "0" + hours : hours;    minutes = minutes < 10 ? "0" + minutes : minutes;    seconds = seconds < 10 ? "0" + seconds : seconds;    // 根据时间段设置显示内容    let displayContent = "";    if (hours >= 9 && hours < 18) {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-33-09.png' title='加油喵！'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    } else {        displayContent = `            <img class='boardsign' src='https://204180371.xyz/PicGo/PixPin_2025-01-28_12-31-48.png' title='休息喵……'>            <span class='textTip'>                <br> 本站居然运行了 ${days} 天            </span>            <span id='runtime'> ${hours} 小时 ${minutes} 分 ${seconds} 秒 </span>            <i class='fas fa-heartbeat' style='color:red'></i>        `;    }    // 更新页面内容    const workboard = document.getElementById("workboard");    if (workboard) {        workboard.innerHTML = displayContent;    }}// 每 250 毫秒更新一次setInterval(() => {    createtime();}, 250);]]></content>
+        <content type="html"><![CDATA[var now = new Date; function createtime() { var t = new Date("04/01/2021 00:00:00"); now.setTime(now.getTime() + 250); var e = (now - t) / 1e3 / 60 / 60 / 24, a = Math.floor(e), n = (now - t) / 1e3 / 60 / 60 - 24 * a, r = Math.floor(n); 1 == String(r).length && (r = "0" + r); var s = (now - t) / 1e3 / 60 - 1440 * a - 60 * r, i = Math.floor(s); 1 == String(i).length && (i = "0" + i); var o = (now - t) / 1e3 - 86400 * a - 3600 * r - 60 * i, l = Math.round(o); 1 == String(l).length && (l = "0" + l); let g = ""; g = r < 18 && r >= 9 ? `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-上班摸鱼中.svg' title='距离月入25k也就还差一个大佬带我~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>` : `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-下班啦.svg' title='下班了就该开开心心的玩耍，嘿嘿~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>`, document.getElementById("workboard") && (document.getElementById("workboard").innerHTML = g) } setInterval((() => { createtime() }), 250);]]></content>
       
     </entry>
     
     
     
     <entry>
-      <title></title>
-      <link href="/js/runtime/runtime.min.js"/>
-      <url>/js/runtime/runtime.min.js</url>
+      <title>About</title>
+      <link href="/about/index.html"/>
+      <url>/about/index.html</url>
       
-        <content type="html"><![CDATA[var now = new Date; function createtime() { var t = new Date("04/01/2021 00:00:00"); now.setTime(now.getTime() + 250); var e = (now - t) / 1e3 / 60 / 60 / 24, a = Math.floor(e), n = (now - t) / 1e3 / 60 / 60 - 24 * a, r = Math.floor(n); 1 == String(r).length && (r = "0" + r); var s = (now - t) / 1e3 / 60 - 1440 * a - 60 * r, i = Math.floor(s); 1 == String(i).length && (i = "0" + i); var o = (now - t) / 1e3 - 86400 * a - 3600 * r - 60 * i, l = Math.round(o); 1 == String(l).length && (l = "0" + l); let g = ""; g = r < 18 && r >= 9 ? `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-上班摸鱼中.svg' title='距离月入25k也就还差一个大佬带我~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>` : `<img class='boardsign' src='https://npm.elemecdn.com/anzhiyu-blog@2.0.3/img/badge/安知鱼-下班啦.svg' title='下班了就该开开心心的玩耍，嘿嘿~'><span class='textTip'> <br> 本站居然运行了 ${a} 天</span><span id='runtime'> ${r} 小时 ${i} 分 ${l} 秒 </span> <i class='fas fa-heartbeat' style='color:red'></i>`, document.getElementById("workboard") && (document.getElementById("workboard").innerHTML = g) } setInterval((() => { createtime() }), 250);]]></content>
+        <content type="html"><![CDATA[<h2 id="👋-Hi，我是祝炩烟！"><a href="#👋-Hi，我是祝炩烟！" class="headerlink" title="👋 Hi，我是祝炩烟！"></a><strong>👋 Hi，我是祝炩烟！</strong></h2><p>💡 我的签名是 <strong>“会当身由己，婉转入江湖”</strong>，这也是我的博客副标题！希望能在这个博客里，记录我的成长、探索与思考。</p><hr><h2 id="📜-关于本站"><a href="#📜-关于本站" class="headerlink" title="📜 关于本站"></a><strong>📜 关于本站</strong></h2><p>🎈 <strong>CandleLight 博客</strong>(<a href="https://cand1elight.github.io)是一个综合性的个人技术">https://cand1elight.github.io)是一个综合性的个人技术</a> &amp; 学术 &amp; 生活博客，主要分享：</p><ul><li><strong>💻 代码技术</strong>（Hexo/Vue/前端开发）</li><li><strong>📜 学习记录</strong>（日常学习、论文写作）</li><li><strong>📸 生活碎片</strong>（Plog、二次元安利）</li></ul><p>本站采用 <strong>Hexo + Butterfly 主题</strong>，如果你喜欢我的内容，欢迎交流～ 🥳</p><hr><h2 id="🛠️-博客配置"><a href="#🛠️-博客配置" class="headerlink" title="🛠️ 博客配置"></a><strong>🛠️ 博客配置</strong></h2><p>💻 <strong>博客搭建</strong>：</p><ul><li><strong>框架</strong>：Hexo + Butterfly</li><li><strong>前端</strong>：Vue、Tailwind CSS</li><li><strong>后端</strong>：Node.js</li><li><strong>存储</strong>：PicGo + 图床</li></ul><p>📡 <strong>访问方式</strong>：</p><ul><li>🌐 <strong>主站地址</strong>：<a href="https://cand1elight.github.io/">https://cand1elight.github.io/</a></li><li>📖 <strong>GitHub 博客仓库</strong>：<a href="https://github.com/Cand1eLight">GitHub</a></li></ul><hr><h2 id="🌈-个人兴趣"><a href="#🌈-个人兴趣" class="headerlink" title="🌈 个人兴趣"></a><strong>🌈 个人兴趣</strong></h2><p><strong>动漫 🎬</strong>：喜欢《葬送的芙莉莲》《EVA》《BanG Dream!It’s MyGO!!!!!》</p><p><strong>音乐 🎧</strong>：二次元 OST，Lo-Fi，chill</p><p><strong>运动 🏸</strong>：羽毛球、乒乓球</p><p><strong>数码 🖥️</strong>：编程、DIY 机械键盘、开源项目  </p><p><strong>游戏 🕹️</strong>：荒野大镖客2、艾尔登法环、黑神话悟空、星际拓荒、P5R</p><hr><h2 id="📮-联系我"><a href="#📮-联系我" class="headerlink" title="📮 联系我"></a><strong>📮 联系我</strong></h2><p>✉️ <strong>Email</strong>：<a href="204180371@qq.com">204180371@qq.com</a><br>💬 <strong>B 站</strong>：<a href="https://space.bilibili.com/3546557553052060">https://space.bilibili.com/3546557553052060</a>  </p>]]></content>
       
     </entry>
     
