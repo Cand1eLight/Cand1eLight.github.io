@@ -1,0 +1,663 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路 | 祝炩烟's Blog</title><meta name="author" content="祝炩烟"><meta name="copyright" content="祝炩烟"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="本文是一篇工程架构复盘，面向了解 Python、HTTP API 和大语言模型基础概念的读者。文章中的代码和结论以项目当前代码为准，同时会明确标出尚处于架构设计阶段的部分。    语言理解负责理解需求，外部 API 负责提供事实数据，运筹算法负责做可行性决策，前端负责把结果变成可交互的地图体验。  旅行规划不是文本生成问题旅行规划最容易被低估的地方，是它看起来像一个聊天问题，实际上却是一个带有时">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路">
+<meta property="og:url" content="https://cand1elight.github.io/posts/f1485021.html">
+<meta property="og:site_name" content="祝炩烟&#39;s Blog">
+<meta property="og:description" content="本文是一篇工程架构复盘，面向了解 Python、HTTP API 和大语言模型基础概念的读者。文章中的代码和结论以项目当前代码为准，同时会明确标出尚处于架构设计阶段的部分。    语言理解负责理解需求，外部 API 负责提供事实数据，运筹算法负责做可行性决策，前端负责把结果变成可交互的地图体验。  旅行规划不是文本生成问题旅行规划最容易被低估的地方，是它看起来像一个聊天问题，实际上却是一个带有时">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://204180371.xyz/PicGo/FCCE41AA8576CD034C2A7782EF7CB846.jpg">
+<meta property="article:published_time" content="2026-07-12T15:26:19.000Z">
+<meta property="article:modified_time" content="2026-07-12T15:29:10.436Z">
+<meta property="article:author" content="祝炩烟">
+<meta property="article:tag" content="LLM">
+<meta property="article:tag" content="Agent">
+<meta property="article:tag" content="LangGraph">
+<meta property="article:tag" content="FastAPI">
+<meta property="article:tag" content="运筹优化">
+<meta property="article:tag" content="MapLibre">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://204180371.xyz/PicGo/FCCE41AA8576CD034C2A7782EF7CB846.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路",
+  "url": "https://cand1elight.github.io/posts/f1485021.html",
+  "image": "https://204180371.xyz/PicGo/FCCE41AA8576CD034C2A7782EF7CB846.jpg",
+  "datePublished": "2026-07-12T15:26:19.000Z",
+  "dateModified": "2026-07-12T15:29:10.436Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "祝炩烟",
+      "url": "https://cand1elight.github.io/"
+    }
+  ]
+}</script><link rel="shortcut icon" href="https://204180371.xyz/PicGo/youzi.png"><link rel="canonical" href="https://cand1elight.github.io/posts/f1485021.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":true,"top_n_per_article":3,"unescape":false,"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css" media="defer" onload="this.media='all'"><!-- hexo injector head_end start --><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.css" /><link rel="stylesheet" href="https://npm.elemecdn.com/anzhiyu-blog@2.0.4/css/runtime/runtime.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/animate.min.css" media="print" onload="this.media='screen'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/font-awesome-animation.min.css" media="defer" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/tag_plugins.css" media="defer" onload="this.media='all'"><script src="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/carousel-touch.js"></script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body><div id="web_bg" style="background-image: url(https://204180371.xyz/PicGo/fulilian.jpg);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">21</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://204180371.xyz/PicGo/FCCE41AA8576CD034C2A7782EF7CB846.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="https://204180371.xyz/PicGo/youzi.png" alt="Logo"><span class="site-name">祝炩烟's Blog</span></a><a class="nav-page-title" href="/"><span class="site-name">Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路</span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-12T15:26:19.000Z" title="发表于 2026-07-12 23:26:19">2026-07-12</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-12T15:29:10.436Z" title="更新于 2026-07-12 23:29:10">2026-07-12</time></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>本文是一篇工程架构复盘，面向了解 Python、HTTP API 和大语言模型基础概念的读者。文章中的代码和结论以项目当前代码为准，同时会明确标出尚处于架构设计阶段的部分。</p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/20260712230634262.png" alt="MiMo Travel 项目封面"></p>
+<blockquote>
+<p>语言理解负责理解需求，外部 API 负责提供事实数据，运筹算法负责做可行性决策，前端负责把结果变成可交互的地图体验。</p>
+</blockquote>
+<h2 id="旅行规划不是文本生成问题"><a href="#旅行规划不是文本生成问题" class="headerlink" title="旅行规划不是文本生成问题"></a>旅行规划不是文本生成问题</h2><p>旅行规划最容易被低估的地方，是它看起来像一个聊天问题，实际上却是一个带有时间窗、空间距离和个人约束的决策问题。</p>
+<p>用户说“带老人和行李，上午从虹口出发，想去几个景点，晚上六点前结束”，系统至少要处理这些事实：</p>
+<ul>
+<li>景点是否真实存在，坐标是否可靠；</li>
+<li>景点什么时候营业，需要停留多久；</li>
+<li>相邻地点之间到底怎么走；</li>
+<li>行李和同行人员会不会放大步行、换乘和等待的成本；</li>
+<li>当前已经消耗了多少时间、体力和注意力；</li>
+<li>这条路线能不能在现实中执行。</li>
+</ul>
+<p>如果让大模型直接输出一篇攻略，它可以写出通顺的答案，却不能天然保证这些约束成立。</p>
+<p>MiMo Travel 的做法是把问题拆开：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">大模型负责理解和编排</span><br><span class="line">外部 API 负责提供事实数据</span><br><span class="line">确定性算法负责排期和剪枝</span><br><span class="line">前端负责把结果变成可交互地图</span><br></pre></td></tr></table></figure>
+<p>这也是这个项目最值得复盘的地方：它没有把“大模型更聪明”当作系统可靠性的唯一来源，而是把模型放回一个由数据、算法和协议共同组成的工程系统里。</p>
+<h2 id="本文的主要实现内容"><a href="#本文的主要实现内容" class="headerlink" title="本文的主要实现内容"></a>本文的主要实现内容</h2><ul>
+<li>用 LLM + Tool Calling 构建真实业务 Agent；</li>
+<li>把外部 API 接入模型工作流；</li>
+<li>让模型输出经过确定性算法校验；</li>
+<li>为 Agent 设计流式前后端协议；</li>
+<li>在地图产品中处理路线、GeoJSON 和坐标系转换；</li>
+<li>需要区分“架构蓝图”和“当前已实现链路”。</li>
+</ul>
+<h2 id="项目当前的运行链路"><a href="#项目当前的运行链路" class="headerlink" title="项目当前的运行链路"></a>项目当前的运行链路</h2><p>项目分为 Python 后端和 Next.js 前端两部分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MiMo_Travel_SaaS/</span><br><span class="line">├── TRAVEL_AI/              # FastAPI、Agent、工具和调度算法</span><br><span class="line">├── travel-ai-frontend/     # Next.js 聊天界面与 MapLibre 地图</span><br><span class="line">├── knowledge/              # 研究资料</span><br><span class="line">└── AGENTS.md               # 多智能体 DAG 架构规范</span><br></pre></td></tr></table></figure>
+<p>当前真正运行的主链路主要集中在 <code>TRAVEL_AI/main.py</code> 和 <code>TRAVEL_AI/main_workflow.py</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">flowchart LR</span><br><span class="line">    U[用户自然语言请求] --&gt; API[FastAPI]</span><br><span class="line">    API --&gt; AG[LangGraph ReAct Agent]</span><br><span class="line">    AG --&gt; POI[tool_search_pois]</span><br><span class="line">    POI --&gt; AMAP1[高德 POI REST API]</span><br><span class="line">    AMAP1 --&gt; JSON[结构化 POI JSON]</span><br><span class="line">    JSON --&gt; PLAN[tool_calculate_itinerary]</span><br><span class="line">    PLAN --&gt; CPU[AdvancedOPTWScheduler]</span><br><span class="line">    CPU --&gt; IT[最终行程]</span><br><span class="line">    IT --&gt; ROUTE[高德路线 API]</span><br><span class="line">    ROUTE --&gt; LEG[路线 legs / polyline]</span><br><span class="line">    LEG --&gt; SSE[SSE]</span><br><span class="line">    SSE --&gt; CHAT[聊天界面]</span><br><span class="line">    SSE --&gt; MAP[MapLibre 地图]</span><br></pre></td></tr></table></figure>
+<p>图中最重要的关系是：LLM 并不直接生成坐标和路线。它通过工具拿到真实数据，再把算法处理过的结果解释给用户。</p>
+<h2 id="设计蓝图：用-DAG-给-Agent-划清职责"><a href="#设计蓝图：用-DAG-给-Agent-划清职责" class="headerlink" title="设计蓝图：用 DAG 给 Agent 划清职责"></a>设计蓝图：用 DAG 给 Agent 划清职责</h2><p>项目根目录的 <code>AGENTS.md</code> 定义了更完整的多节点架构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">START → route_entry → profiler / editor</span><br><span class="line">profiler → explorer → scheduler → interpreter → END</span><br><span class="line">editor → END</span><br></pre></td></tr></table></figure>
+<p>每个节点都有自己的输入、输出和禁止事项：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>节点</th>
+<th>角色</th>
+<th>负责什么</th>
+<th>不负责什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>profiler</code></td>
+<td>Scanner</td>
+<td>提取行李、人数、时间窗等物理参数</td>
+<td>不推荐景点，不寒暄</td>
+</tr>
+<tr>
+<td><code>explorer</code></td>
+<td>Scraper</td>
+<td>获取并清洗真实 POI 数据</td>
+<td>不规划先后顺序</td>
+</tr>
+<tr>
+<td><code>scheduler</code></td>
+<td>CPU</td>
+<td>按时间窗和状态约束计算行程</td>
+<td>不调用 LLM，不输出文本</td>
+</tr>
+<tr>
+<td><code>editor</code></td>
+<td>Surgeon</td>
+<td>对既有行程做局部修改</td>
+<td>不触发全局重算</td>
+</tr>
+<tr>
+<td><code>interpreter</code></td>
+<td>Spokesperson</td>
+<td>解释最终排期和约束原因</td>
+<td>不修改行程数据</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这套设计的核心不是给节点起了几个漂亮的英文代号，而是建立了边界：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">能提取参数的节点，不应该擅自推荐景点。</span><br><span class="line">能抓取数据的节点，不应该替用户决定顺序。</span><br><span class="line">能计算路线的节点，不应该依赖模型的自由发挥。</span><br><span class="line">能写解释的节点，不应该改动计算结果。</span><br></pre></td></tr></table></figure>
+<p><img src="https://204180371.xyz/PicGo/20260712231407218.png" alt="MiMo Travel 多智能体 DAG 设计"></p>
+<h3 id="设计目标和当前实现不是一回事"><a href="#设计目标和当前实现不是一回事" class="headerlink" title="设计目标和当前实现不是一回事"></a>设计目标和当前实现不是一回事</h3><p>需要诚实说明的是：这套 DAG 是项目的架构规范，但当前主入口已经演进为 LangGraph ReAct 工具链。</p>
+<p>当前代码中已经存在并发挥作用的能力包括：</p>
+<ul>
+<li><code>DualTrackProfiler</code>：物理约束和潜在状态提取；</li>
+<li><code>ExplorerAgent</code>：联网搜索和 POI 结构化；</li>
+<li><code>AdvancedOPTWScheduler</code>：确定性行程调度；</li>
+<li><code>AcademicTransitOptimizer</code>：交通方式综合效用计算；</li>
+<li>SSE：状态、文本和地图数据的流式传输。</li>
+</ul>
+<p>但 <code>editor</code>、<code>interpreter</code> 和 <code>route_entry</code> 尚未以完整独立节点的形式接入当前主入口。当前版本中，部分职责由 ReAct Agent 和最终模型输出共同承担。</p>
+<p>这不是需要掩盖的差异。对于工程项目，设计蓝图和可运行实现本来就会随着迭代发生变化。把两者分开写清楚，反而能让架构演进更可信。</p>
+<h2 id="Profiler：先检查约束，再决定是否规划"><a href="#Profiler：先检查约束，再决定是否规划" class="headerlink" title="Profiler：先检查约束，再决定是否规划"></a>Profiler：先检查约束，再决定是否规划</h2><p><code>DualTrackProfiler</code> 位于 <code>TRAVEL_AI/agent/profiler_agent.py</code>，它维护两类状态。</p>
+<p>第一类是硬约束：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable language_">self</span>.hard_constraints = &#123;</span><br><span class="line">    <span class="string">&quot;luggage_count&quot;</span>: <span class="number">0</span>,</span><br><span class="line">    <span class="string">&quot;has_elderly_or_kids&quot;</span>: <span class="literal">False</span>,</span><br><span class="line">    <span class="string">&quot;strict_time_limit&quot;</span>: <span class="literal">None</span>,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>第二类是潜在状态：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable language_">self</span>.latent_state = &#123;</span><br><span class="line">    <span class="string">&quot;financial_capacity&quot;</span>: &#123;<span class="string">&quot;mu&quot;</span>: <span class="number">0.5</span>, <span class="string">&quot;variance&quot;</span>: <span class="number">1.0</span>&#125;,</span><br><span class="line">    <span class="string">&quot;stamina_willingness&quot;</span>: &#123;<span class="string">&quot;mu&quot;</span>: <span class="number">0.5</span>, <span class="string">&quot;variance&quot;</span>: <span class="number">1.0</span>&#125;,</span><br><span class="line">    <span class="string">&quot;cognitive_load&quot;</span>: &#123;<span class="string">&quot;mu&quot;</span>: <span class="number">0.5</span>, <span class="string">&quot;variance&quot;</span>: <span class="number">1.0</span>&#125;,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>硬约束可以直接进入后续计算，潜在状态则通过方差判断是否已经收敛：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">is_profile_converged</span>(<span class="params">self</span>) -&gt; <span class="built_in">bool</span>:</span><br><span class="line">    <span class="keyword">for</span> state <span class="keyword">in</span> <span class="variable language_">self</span>.latent_state.values():</span><br><span class="line">        <span class="keyword">if</span> state[<span class="string">&quot;variance&quot;</span>] &gt; <span class="variable language_">self</span>.confidence_threshold:</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">True</span></span><br></pre></td></tr></table></figure>
+<p>当关键信息没有收敛时，系统应该停下来追问，而不是把缺失参数交给调度器猜测。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">flowchart TD</span><br><span class="line">    A[用户输入] --&gt; B[提取物理约束]</span><br><span class="line">    B --&gt; C&#123;状态是否收敛&#125;</span><br><span class="line">    C --&gt;|否| D[生成一句追问]</span><br><span class="line">    C --&gt;|是| E[导出调度参数]</span><br><span class="line">    E --&gt; F[进入 POI 搜索和行程计算]</span><br></pre></td></tr></table></figure>
+<p>在实际产品中，这种拦截机制比“马上给出一个看起来完整的答案”更重要。一个短追问的代价，通常小于一条现实中无法执行的路线。</p>
+<h2 id="Explorer：把模糊偏好变成可计算的-POI"><a href="#Explorer：把模糊偏好变成可计算的-POI" class="headerlink" title="Explorer：把模糊偏好变成可计算的 POI"></a>Explorer：把模糊偏好变成可计算的 POI</h2><p>Explorer 的工作是把“我想逛博物馆和城市地标”变成调度器能够消费的结构化数组。</p>
+<p>当前运行版本的 <code>tool_search_pois</code> 使用高德地图 REST API：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@tool</span></span><br><span class="line"><span class="keyword">async</span> <span class="keyword">def</span> <span class="title function_">tool_search_pois</span>(<span class="params">city: <span class="built_in">str</span>, preference: <span class="built_in">str</span></span>) -&gt; <span class="built_in">str</span>:</span><br><span class="line">    <span class="string">&quot;&quot;&quot;Search real AMap POIs. Every item contains name, duration_mins, lng and lat.&quot;&quot;&quot;</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> AMAP_REST_KEY.strip():</span><br><span class="line">        <span class="keyword">raise</span> RuntimeError(<span class="string">&quot;AMAP_REST_KEY is missing; refusing mock POI data&quot;</span>)</span><br></pre></td></tr></table></figure>
+<p>返回的数据至少需要包含：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;上海博物馆&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;score&quot;</span><span class="punctuation">:</span> <span class="number">9.0</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;duration_mins&quot;</span><span class="punctuation">:</span> <span class="number">150</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;open_time&quot;</span><span class="punctuation">:</span> <span class="string">&quot;10:00&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;close_time&quot;</span><span class="punctuation">:</span> <span class="string">&quot;18:00&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;lng&quot;</span><span class="punctuation">:</span> <span class="number">121.49</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;lat&quot;</span><span class="punctuation">:</span> <span class="number">31.23</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+<p>这里有一个明确的可靠性选择：没有 <code>AMAP_REST_KEY</code> 时，当前搜索工具拒绝生成伪造 POI 数据。</p>
+<p>这会让系统在本地演示时更容易失败，但它避免了更隐蔽的问题：模型拿着虚构的坐标继续计算，最后地图和路线都看起来“像真的”。</p>
+<p>Explorer 还处理了外部 API 的工程噪声：</p>
+<ul>
+<li>使用 <code>asyncio.Lock</code> 控制搜索并发；</li>
+<li>对高德限流进行重试；</li>
+<li>过滤没有坐标的 POI；</li>
+<li>补齐地址、类型和默认字段；</li>
+<li>解析 POI 图片和网站信息；</li>
+<li>空结果时显式抛出错误。</li>
+</ul>
+<h2 id="Scheduler：真正决定“这一天能不能这样走”"><a href="#Scheduler：真正决定“这一天能不能这样走”" class="headerlink" title="Scheduler：真正决定“这一天能不能这样走”"></a>Scheduler：真正决定“这一天能不能这样走”</h2><p>项目的核心算法位于 <code>TRAVEL_AI/core_algorithm/optw_scheduler.py</code>。</p>
+<p><code>AdvancedOPTWScheduler</code> 并不是把 POI 按评分降序排列，而是在一个状态循环中不断评估候选点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">当前时间、当前地点、当前体力、当前认知负荷</span><br><span class="line">                 ↓</span><br><span class="line">          枚举未访问 POI</span><br><span class="line">                 ↓</span><br><span class="line">       过滤时间窗和总预算时长</span><br><span class="line">                 ↓</span><br><span class="line">          计算综合收益</span><br><span class="line">                 ↓</span><br><span class="line">           选择当前最优点</span><br><span class="line">                 ↓</span><br><span class="line">      更新时间、体力、认知负荷</span><br><span class="line">                 ↓</span><br><span class="line">              下一轮</span><br></pre></td></tr></table></figure>
+<h3 id="时间窗是硬约束"><a href="#时间窗是硬约束" class="headerlink" title="时间窗是硬约束"></a>时间窗是硬约束</h3><p>调度器首先估算抵达时间，再判断景点是否已经关闭：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">arrival_t = <span class="variable language_">self</span>.current_time + datetime.timedelta(minutes=transit_mins)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> arrival_t.time() &gt; close_t:</span><br><span class="line">    <span class="keyword">continue</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> arrival_t.time() &lt; open_t:</span><br><span class="line">    arrival_t = datetime.datetime.combine(arrival_t.date(), open_t)</span><br></pre></td></tr></table></figure>
+<p>离开时间超过总行程上限的 POI 也会被剪掉：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">leave_t = arrival_t + datetime.timedelta(</span><br><span class="line">    minutes=<span class="built_in">int</span>(poi.get(<span class="string">&quot;duration_mins&quot;</span>) <span class="keyword">or</span> <span class="number">90</span>)</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> leave_t &gt; <span class="variable language_">self</span>.end_time_limit:</span><br><span class="line">    <span class="keyword">continue</span></span><br></pre></td></tr></table></figure>
+<p>这一步把“景点值得去”变成了“景点现在去得成”。</p>
+<p><img src="https://204180371.xyz/PicGo/20260712231826026.png" alt="时间窗规划"></p>
+<h3 id="体力和认知负荷是动态状态"><a href="#体力和认知负荷是动态状态" class="headerlink" title="体力和认知负荷是动态状态"></a>体力和认知负荷是动态状态</h3><p>普通景点会消耗体力，并增加认知负荷：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable language_">self</span>.current_stamina = <span class="built_in">max</span>(</span><br><span class="line">    <span class="number">0.0</span>,</span><br><span class="line">    <span class="variable language_">self</span>.current_stamina - (best_poi[<span class="string">&quot;duration_mins&quot;</span>] * <span class="number">0.3</span>),</span><br><span class="line">)</span><br><span class="line"><span class="variable language_">self</span>.current_cognitive_load += <span class="number">15.0</span></span><br></pre></td></tr></table></figure>
+<p>如果体力过低或认知负荷过高，系统会拒绝继续安排普通景点：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (</span><br><span class="line">    <span class="variable language_">self</span>.current_cognitive_load &gt; <span class="number">80</span></span><br><span class="line">    <span class="keyword">or</span> <span class="variable language_">self</span>.current_stamina &lt; <span class="number">30</span></span><br><span class="line">) <span class="keyword">and</span> <span class="keyword">not</span> poi.get(<span class="string">&quot;is_rest_stop&quot;</span>, <span class="literal">False</span>):</span><br><span class="line">    <span class="keyword">continue</span></span><br></pre></td></tr></table></figure>
+<p>休息点则可以恢复状态：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> best_poi.get(<span class="string">&quot;is_rest_stop&quot;</span>, <span class="literal">False</span>):</span><br><span class="line">    <span class="variable language_">self</span>.current_stamina = <span class="built_in">min</span>(<span class="number">100.0</span>, <span class="variable language_">self</span>.current_stamina + <span class="number">40.0</span>)</span><br><span class="line">    <span class="variable language_">self</span>.current_cognitive_load = <span class="built_in">max</span>(</span><br><span class="line">        <span class="number">0.0</span>,</span><br><span class="line">        <span class="variable language_">self</span>.current_cognitive_load - <span class="number">50.0</span>,</span><br><span class="line">    )</span><br></pre></td></tr></table></figure>
+<h3 id="Fogg、展望理论和行李惩罚如何组合"><a href="#Fogg、展望理论和行李惩罚如何组合" class="headerlink" title="Fogg、展望理论和行李惩罚如何组合"></a>Fogg、展望理论和行李惩罚如何组合</h3><p>候选 POI 的收益计算使用了一个启发式综合模型：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ability_score = (</span><br><span class="line">    (<span class="variable language_">self</span>.current_stamina * <span class="number">0.6</span>)</span><br><span class="line">    + ((<span class="number">100</span> - <span class="variable language_">self</span>.current_cognitive_load) * <span class="number">0.4</span>)</span><br><span class="line">    - luggage_penalty</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+<p>景点评分作为动机，剩余体力和认知容量作为行动能力，交通时间和体力消耗则通过展望理论转换成成本：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">pain_money = -<span class="variable language_">self</span>.lambda_loss * math.<span class="built_in">pow</span>(cost_money, <span class="number">0.88</span>)</span><br><span class="line">pain_stamina = -<span class="variable language_">self</span>.lambda_loss * math.<span class="built_in">pow</span>(cost_stamina, <span class="number">0.88</span>)</span><br></pre></td></tr></table></figure>
+<p>最终收益可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">景点动机 × 当前行动能力</span><br><span class="line">--------------------------------</span><br><span class="line">交通、体力和换乘成本</span><br></pre></td></tr></table></figure>
+<p>这个模型不是在宣称“人的旅行体验可以被一个公式完整描述”。它的实际作用是提供一组稳定、可检查、可调参的决策规则，让系统不会只追逐景点评分。</p>
+<h2 id="从行程序列到真实道路"><a href="#从行程序列到真实道路" class="headerlink" title="从行程序列到真实道路"></a>从行程序列到真实道路</h2><p>调度器输出的是有顺序的 POI 列表，地图需要的是相邻 POI 之间的道路路径。</p>
+<p>后端在 <code>_build_legs</code> 中完成这个转换：</p>
+<ol>
+<li>取出相邻 POI；</li>
+<li>计算两点球面距离；</li>
+<li>依据距离选择交通方式；</li>
+<li>请求高德路线 API；</li>
+<li>解析 polyline；</li>
+<li>构造成前端消费的 <code>legs</code>。</li>
+</ol>
+<p>当前版本使用的交通方式启发式规则是：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mode = (</span><br><span class="line">    <span class="string">&quot;walking&quot;</span></span><br><span class="line">    <span class="keyword">if</span> distance_km &lt;= <span class="number">1.5</span></span><br><span class="line">    <span class="keyword">else</span> <span class="string">&quot;transit&quot;</span></span><br><span class="line">    <span class="keyword">if</span> distance_km &lt;= <span class="number">8.0</span></span><br><span class="line">    <span class="keyword">else</span> <span class="string">&quot;driving&quot;</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+<p>每一个路线段会携带：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;mode&quot;</span><span class="punctuation">:</span> <span class="string">&quot;transit&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;dense_path&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">[</span><span class="number">121.49</span><span class="punctuation">,</span> <span class="number">31.23</span><span class="punctuation">]</span><span class="punctuation">,</span> <span class="punctuation">[</span><span class="number">121.50</span><span class="punctuation">,</span> <span class="number">31.24</span><span class="punctuation">]</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;distance_m&quot;</span><span class="punctuation">:</span> <span class="number">5200</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;duration_min&quot;</span><span class="punctuation">:</span> <span class="number">28.5</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;cost_yuan&quot;</span><span class="punctuation">:</span> <span class="number">4</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;transit_lines&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;地铁2号线&quot;</span><span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;from_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;外滩&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;to_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;陆家嘴&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+<p>这里的职责分层很清楚：</p>
+<ul>
+<li>Scheduler 决定去哪几个点、顺序是什么；</li>
+<li>高德路线 API 决定两个点之间实际怎么走；</li>
+<li>MapLibre 决定怎么画出来。</li>
+</ul>
+<p><img src="https://204180371.xyz/PicGo/20260712231521249.png" alt="行程序列到真实路线的转换"></p>
+<h2 id="SSE：让模型、算法和地图同时有反馈"><a href="#SSE：让模型、算法和地图同时有反馈" class="headerlink" title="SSE：让模型、算法和地图同时有反馈"></a>SSE：让模型、算法和地图同时有反馈</h2><p>后端入口在 <code>TRAVEL_AI/main.py</code>，核心接口是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">POST /api/v1/travel/plan</span><br></pre></td></tr></table></figure>
+<p>接口以 Server-Sent Events 返回四类事件：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span><span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;status&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;content&quot;</span><span class="punctuation">:</span> <span class="string">&quot;正在搜索真实地点...&quot;</span><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#123;</span><span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;chunk&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;content&quot;</span><span class="punctuation">:</span> <span class="string">&quot;路线已经生成&quot;</span><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#123;</span><span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;map_data&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;legs&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="punctuation">]</span><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#123;</span><span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;done&quot;</span><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+<p>前端根据事件类型分别处理：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>事件</th>
+<th>前端行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td>追加状态日志</td>
+</tr>
+<tr>
+<td><code>chunk</code></td>
+<td>拼接 Markdown 文本</td>
+</tr>
+<tr>
+<td><code>map_data</code></td>
+<td>更新地图路线</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>展示错误信息</td>
+</tr>
+<tr>
+<td><code>done</code></td>
+<td>结束加载状态</td>
+</tr>
+</tbody>
+</table>
+</div>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">    participant U as 用户</span><br><span class="line">    participant F as Next.js 前端</span><br><span class="line">    participant B as FastAPI</span><br><span class="line">    participant L as LLM Agent</span><br><span class="line">    participant A as 高德 API</span><br><span class="line">    participant S as Scheduler</span><br><span class="line"></span><br><span class="line">    U-&gt;&gt;F: 输入旅行需求</span><br><span class="line">    F-&gt;&gt;B: POST /api/v1/travel/plan</span><br><span class="line">    B--&gt;&gt;F: status</span><br><span class="line">    B-&gt;&gt;L: 理解意图并选择工具</span><br><span class="line">    L-&gt;&gt;A: 搜索 POI</span><br><span class="line">    A--&gt;&gt;L: 结构化 POI</span><br><span class="line">    L-&gt;&gt;S: calculate_itinerary</span><br><span class="line">    S--&gt;&gt;L: 最终行程</span><br><span class="line">    B-&gt;&gt;A: 查询相邻路段</span><br><span class="line">    A--&gt;&gt;B: polyline、距离、耗时</span><br><span class="line">    B--&gt;&gt;F: map_data</span><br><span class="line">    B--&gt;&gt;F: chunk</span><br><span class="line">    B--&gt;&gt;F: done</span><br></pre></td></tr></table></figure>
+<p>流式传输解决了一个实际体验问题：POI 搜索、调度计算和路线查询都可能耗时。如果前端只能等待最终结果，用户会看到一段没有反馈的空白时间。</p>
+<p>现在，状态、文本和地图可以按自己的节奏到达，前端也不需要知道后端每一步的内部实现。</p>
+<h2 id="前端：聊天是入口，地图才是结果的空间表达"><a href="#前端：聊天是入口，地图才是结果的空间表达" class="headerlink" title="前端：聊天是入口，地图才是结果的空间表达"></a>前端：聊天是入口，地图才是结果的空间表达</h2><p>前端位于 <code>travel-ai-frontend</code>，主要使用：</p>
+<ul>
+<li>Next.js 16；</li>
+<li>React 19；</li>
+<li>TypeScript；</li>
+<li>Tailwind CSS；</li>
+<li>React Markdown；</li>
+<li>MapLibre GL；</li>
+<li><code>react-map-gl</code>；</li>
+<li><code>gcoord</code>。</li>
+</ul>
+<p>页面采用左右分栏：左侧是对话和状态日志，右侧是地图。</p>
+<p>地图组件将 <code>legs</code> 转换成 GeoJSON：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> <span class="attr">routeData</span>: <span class="title class_">FeatureCollection</span>&lt;<span class="title class_">LineString</span>&gt; = &#123;</span><br><span class="line">  <span class="attr">type</span>: <span class="string">&quot;FeatureCollection&quot;</span>,</span><br><span class="line">  <span class="attr">features</span>: routeLegs.<span class="title function_">map</span>(<span class="function">(<span class="params">leg, index</span>) =&gt;</span> (&#123;</span><br><span class="line">    <span class="attr">type</span>: <span class="string">&quot;Feature&quot;</span>,</span><br><span class="line">    <span class="attr">id</span>: <span class="string">`route-<span class="subst">$&#123;index&#125;</span>`</span>,</span><br><span class="line">    <span class="attr">properties</span>: &#123;</span><br><span class="line">      <span class="attr">mode</span>: leg.<span class="property">mode</span>,</span><br><span class="line">      <span class="attr">distance_m</span>: leg.<span class="property">distance_m</span>,</span><br><span class="line">      <span class="attr">duration_min</span>: leg.<span class="property">duration_min</span>,</span><br><span class="line">      <span class="attr">cost_yuan</span>: leg.<span class="property">cost_yuan</span>,</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">geometry</span>: &#123;</span><br><span class="line">      <span class="attr">type</span>: <span class="string">&quot;LineString&quot;</span>,</span><br><span class="line">      <span class="attr">coordinates</span>: <span class="title function_">legPoints</span>(leg),</span><br><span class="line">    &#125;,</span><br><span class="line">  &#125;)),</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<p>路线颜色通过交通方式区分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">步行：绿色</span><br><span class="line">公共交通：蓝色</span><br><span class="line">驾车：紫色</span><br></pre></td></tr></table></figure>
+<p>地图还提供了三个值得写进项目复盘的细节。</p>
+<p><img src="https://204180371.xyz/PicGo/20260712231921729.png" alt="真实路径时间规划"></p>
+<h3 id="坐标系转换"><a href="#坐标系转换" class="headerlink" title="坐标系转换"></a>坐标系转换</h3><p>高德返回的是 GCJ-02 坐标，MapLibre 底图使用 WGS-84，因此前端通过 <code>gcoord</code> 转换：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> [longitude, latitude] = gcoord.<span class="title function_">transform</span>(</span><br><span class="line">  point,</span><br><span class="line">  gcoord.<span class="property">AMap</span>,</span><br><span class="line">  gcoord.<span class="property">WGS84</span>,</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+<p>没有这一步，路线可能会整体偏移，航点也可能无法和道路准确重合。</p>
+<h3 id="自动缩放到完整路线"><a href="#自动缩放到完整路线" class="headerlink" title="自动缩放到完整路线"></a>自动缩放到完整路线</h3><p>收到路线数据后，地图会计算所有路线坐标的边界，并调用 <code>fitBounds</code>：</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">map.<span class="title function_">fitBounds</span>(bounds, &#123;</span><br><span class="line">  <span class="attr">padding</span>: <span class="number">90</span>,</span><br><span class="line">  <span class="attr">pitch</span>: <span class="number">60</span>,</span><br><span class="line">  <span class="attr">bearing</span>: -<span class="number">20</span>,</span><br><span class="line">  <span class="attr">duration</span>: <span class="number">800</span>,</span><br><span class="line">  <span class="attr">maxZoom</span>: <span class="number">15</span>,</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+<p>这让地图视野随着行程变化，而不是固定停留在初始城市视角。</p>
+<h3 id="航点和路线都可以点击"><a href="#航点和路线都可以点击" class="headerlink" title="航点和路线都可以点击"></a>航点和路线都可以点击</h3><p>点击航点时，Popup 会显示：</p>
+<ul>
+<li>POI 名称；</li>
+<li>WGS-84 坐标；</li>
+<li>地址和类型；</li>
+<li>摘要；</li>
+<li>官方网站；</li>
+<li>百科资料；</li>
+<li>图片。</li>
+</ul>
+<p>点击路线时，Popup 会显示：</p>
+<ul>
+<li>交通方式；</li>
+<li>距离；</li>
+<li>耗时；</li>
+<li>费用；</li>
+<li>公交或地铁线路。</li>
+</ul>
+<p><img src="https://204180371.xyz/PicGo/20260712231605017.png" alt="MiMo Travel 前端运行效果"></p>
+<p>这一步让地图不再只是“结果截图”，而是一个可以继续追问和核对数据的界面。</p>
+<h2 id="为什么没有让模型直接生成一切"><a href="#为什么没有让模型直接生成一切" class="headerlink" title="为什么没有让模型直接生成一切"></a>为什么没有让模型直接生成一切</h2><p>这个项目最重要的架构决策，也许是没有把所有工作都塞进 Prompt。</p>
+<h3 id="直接让-LLM-规划的方案"><a href="#直接让-LLM-规划的方案" class="headerlink" title="直接让 LLM 规划的方案"></a>直接让 LLM 规划的方案</h3><p>优点：</p>
+<ul>
+<li>开发快；</li>
+<li>交互自然；</li>
+<li>对模糊表达有较强的适应能力。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>坐标、时间和路线容易出现幻觉；</li>
+<li>结果难以复现；</li>
+<li>很难保证营业时间约束；</li>
+<li>不容易表达体力和行李等动态状态；</li>
+<li>失败原因不容易定位。</li>
+</ul>
+<h3 id="MiMo-Travel-的混合方案"><a href="#MiMo-Travel-的混合方案" class="headerlink" title="MiMo Travel 的混合方案"></a>MiMo Travel 的混合方案</h3><p>优点：</p>
+<ul>
+<li>模型负责语言和工具编排；</li>
+<li>API 提供事实数据；</li>
+<li>调度器负责可行性；</li>
+<li>前端协议稳定；</li>
+<li>每一层都可以独立调试。</li>
+</ul>
+<p>代价：</p>
+<ul>
+<li>代码量更多；</li>
+<li>需要处理 API 限流和超时；</li>
+<li>需要维护数据契约；</li>
+<li>模型、工具和算法之间存在编排复杂度；</li>
+<li>外部 API 不可用时，用户体验会变差。</li>
+</ul>
+<p>这个取舍很明确：系统牺牲了一部分“马上生成答案”的简单性，换取了更强的可检查性。</p>
+<h2 id="当前版本的限制"><a href="#当前版本的限制" class="headerlink" title="当前版本的限制"></a>当前版本的限制</h2><h3 id="1-完整-DAG-尚未全部接入主流程"><a href="#1-完整-DAG-尚未全部接入主流程" class="headerlink" title="1. 完整 DAG 尚未全部接入主流程"></a>1. 完整 DAG 尚未全部接入主流程</h3><p><code>profiler</code>、<code>explorer</code> 和 <code>scheduler</code> 已经有对应实现或实现思路，但 <code>editor</code> 和 <code>interpreter</code> 目前还没有作为独立节点完整运行。</p>
+<p>当前版本应该描述为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">LangGraph ReAct Agent</span><br><span class="line">+ 真实 POI 工具</span><br><span class="line">+ 确定性行程调度</span><br><span class="line">+ 真实路线查询</span><br><span class="line">+ SSE 和地图展示</span><br></pre></td></tr></table></figure>
+<p>而不是已经完成了全部 DAG 节点的生产级实现。</p>
+<h3 id="2-当前路线方式选择是距离启发式"><a href="#2-当前路线方式选择是距离启发式" class="headerlink" title="2. 当前路线方式选择是距离启发式"></a>2. 当前路线方式选择是距离启发式</h3><p>步行、公共交通和驾车的选择主要依据相邻 POI 的球面距离。它还没有把实时拥堵、天气、用户明确偏好和完整的多目标交通比较统一纳入一个全局求解器。</p>
+<h3 id="3-调度器的初始坐标仍有改进空间"><a href="#3-调度器的初始坐标仍有改进空间" class="headerlink" title="3. 调度器的初始坐标仍有改进空间"></a>3. 调度器的初始坐标仍有改进空间</h3><p>当前 <code>AdvancedOPTWScheduler</code> 的初始坐标是 <code>(0, 0)</code>，第一段距离并不是从真实出发地坐标开始计算。</p>
+<p>后续应该把出发地先经过 geocoding 或 POI 搜索，再把真实坐标注入调度器。</p>
+<h3 id="4-测试体系还不够完整"><a href="#4-测试体系还不够完整" class="headerlink" title="4. 测试体系还不够完整"></a>4. 测试体系还不够完整</h3><p>当前前端构建已经通过，但后端还需要补充：</p>
+<ul>
+<li>调度器单元测试；</li>
+<li>营业时间边界测试；</li>
+<li>行李和疲劳状态测试；</li>
+<li>高德 API mock 测试；</li>
+<li>SSE 帧解析测试；</li>
+<li>前端地图点击和坐标转换测试。</li>
+</ul>
+<p>这些测试会比继续堆 Prompt 更直接地提升系统可信度。</p>
+<h2 id="FAQ：这个项目到底是不是多智能体"><a href="#FAQ：这个项目到底是不是多智能体" class="headerlink" title="FAQ：这个项目到底是不是多智能体"></a>FAQ：这个项目到底是不是多智能体</h2><h3 id="当前版本使用了多少个-Agent？"><a href="#当前版本使用了多少个-Agent？" class="headerlink" title="当前版本使用了多少个 Agent？"></a>当前版本使用了多少个 Agent？</h3><p>当前主入口使用 LangGraph ReAct Agent，通过工具完成 POI 搜索、行程计算和天气工具调用。Profiler、Explorer 等角色已经有独立模块或设计，但还没有全部以完整 DAG 节点方式接入主流程。</p>
+<h3 id="为什么-Scheduler-必须和-LLM-隔离？"><a href="#为什么-Scheduler-必须和-LLM-隔离？" class="headerlink" title="为什么 Scheduler 必须和 LLM 隔离？"></a>为什么 Scheduler 必须和 LLM 隔离？</h3><p>因为营业时间、总时长、体力消耗和候选剪枝需要稳定、可复现的计算规则。让模型自由修改这些结果，会削弱系统的可测试性。</p>
+<h3 id="为什么要返回-map-data，只返回-Markdown-不行吗？"><a href="#为什么要返回-map-data，只返回-Markdown-不行吗？" class="headerlink" title="为什么要返回 map_data，只返回 Markdown 不行吗？"></a>为什么要返回 <code>map_data</code>，只返回 Markdown 不行吗？</h3><p>Markdown 适合解释，GeoJSON 和路线 legs 适合空间展示。拆成两种数据后，文本和地图可以独立更新，也方便未来接入其他客户端。</p>
+<h3 id="Hexo-Butterfly-能直接使用这篇文章吗？"><a href="#Hexo-Butterfly-能直接使用这篇文章吗？" class="headerlink" title="Hexo Butterfly 能直接使用这篇文章吗？"></a>Hexo Butterfly 能直接使用这篇文章吗？</h3><p>可以。文章使用标准 Markdown、Mermaid 和图片路径占位。将图片放入 Hexo 的 <code>source/img/</code> 目录，并根据你的 Butterfly 配置调整图片路径即可。</p>
+<h2 id="下一步：从“能规划”走向“可持续编辑”"><a href="#下一步：从“能规划”走向“可持续编辑”" class="headerlink" title="下一步：从“能规划”走向“可持续编辑”"></a>下一步：从“能规划”走向“可持续编辑”</h2><p>如果继续迭代，我会优先做四件事：</p>
+<ol>
+<li>把真实出发地坐标接入 Scheduler，修正第一段距离计算；</li>
+<li>为 <code>editor</code> 实现局部时间窗替换，避免用户修改一个景点时全局重算；</li>
+<li>将 <code>interpreter</code> 独立出来，只允许它解释已排入行程的数据；</li>
+<li>建立一组离线 fixture，覆盖时间窗、行李、体力和 API 失败场景。</li>
+</ol>
+<p>这四项工作不依赖更大的模型，却会明显提高系统的工程完整度。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>MiMo Travel 的核心不是“用大模型生成旅游攻略”，而是尝试建立一条可检查的数据链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">自然语言</span><br><span class="line">  → 用户约束</span><br><span class="line">  → 真实 POI</span><br><span class="line">  → 时间窗调度</span><br><span class="line">  → 真实路线</span><br><span class="line">  → SSE 事件</span><br><span class="line">  → 可交互地图</span><br></pre></td></tr></table></figure>
+<p>大模型提供理解能力，外部 API 提供事实，算法提供约束，前端提供验证入口。</p>
+<p>当这几部分被拆开之后，旅行规划就不再只是一次文本续写，而变成了一个可以调试、解释和继续演进的工程系统。</p>
+<h2 id="配图清单"><a href="#配图清单" class="headerlink" title="配图清单"></a>配图清单</h2><p>建议至少准备下面 8 张图：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>图片</th>
+<th>建议文件名</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文章首图</td>
+<td><code>mimo-travel-cover.png</code></td>
+<td>文章封面和 Butterfly 首页卡片</td>
+</tr>
+<tr>
+<td>当前运行链路</td>
+<td><code>mimo-travel-runtime-flow.png</code></td>
+<td>解释后端、API、算法和前端关系</td>
+</tr>
+<tr>
+<td>多智能体 DAG</td>
+<td><code>mimo-travel-dag.png</code></td>
+<td>展示架构蓝图和节点边界</td>
+</tr>
+<tr>
+<td>Profiler 收敛</td>
+<td><code>mimo-travel-profiler.png</code></td>
+<td>展示追问和参数下发</td>
+</tr>
+<tr>
+<td>POI 数据管道</td>
+<td><code>mimo-travel-poi-pipeline.png</code></td>
+<td>展示 API 到标准 JSON 的清洗过程</td>
+</tr>
+<tr>
+<td>Scheduler 循环</td>
+<td><code>mimo-travel-scheduler-loop.png</code></td>
+<td>展示时间窗、体力和认知负荷</td>
+</tr>
+<tr>
+<td>路线构建</td>
+<td><code>mimo-travel-route-building.png</code></td>
+<td>展示 itinerary 到 polyline 的转换</td>
+</tr>
+<tr>
+<td>前端和 SSE</td>
+<td><code>mimo-travel-sse-sequence.png</code>、<code>mimo-travel-ui.png</code></td>
+<td>展示实时交互和最终产品效果</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>如果暂时没有这些图片，可以先保留占位路径。文章的 Mermaid 图可以直接在 Hexo Butterfly 中渲染，运行截图和架构图则建议放到 <code>source/img/</code> 中。</p>
+<h2 id="参考代码位置"><a href="#参考代码位置" class="headerlink" title="参考代码位置"></a>参考代码位置</h2><ul>
+<li>FastAPI 与 SSE：<code>TRAVEL_AI/main.py</code></li>
+<li>当前 Agent 工作流：<code>TRAVEL_AI/main_workflow.py</code></li>
+<li>Profiler：<code>TRAVEL_AI/agent/profiler_agent.py</code></li>
+<li>Explorer：<code>TRAVEL_AI/agent/explorer_agent.py</code></li>
+<li>调度器：<code>TRAVEL_AI/core_algorithm/optw_scheduler.py</code></li>
+<li>交通效用模型：<code>TRAVEL_AI/transit_optimizer.py</code></li>
+<li>高德工具：<code>TRAVEL_AI/tools/amap_tools.py</code></li>
+<li>前端聊天：<code>travel-ai-frontend/app/page.tsx</code></li>
+<li>前端地图：<code>travel-ai-frontend/components/MapEngine.tsx</code></li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io">祝炩烟</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io/posts/f1485021.html">https://cand1elight.github.io/posts/f1485021.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://cand1elight.github.io" target="_blank">祝炩烟's Blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/LLM/">LLM</a><a class="post-meta__tags" href="/tags/Agent/">Agent</a><a class="post-meta__tags" href="/tags/LangGraph/">LangGraph</a><a class="post-meta__tags" href="/tags/FastAPI/">FastAPI</a><a class="post-meta__tags" href="/tags/%E8%BF%90%E7%AD%B9%E4%BC%98%E5%8C%96/">运筹优化</a><a class="post-meta__tags" href="/tags/MapLibre/">MapLibre</a></div><div class="post-share"><div class="social-share" data-image="https://204180371.xyz/PicGo/FCCE41AA8576CD034C2A7782EF7CB846.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">祝炩烟</div><div class="author-info-description">记录日常与学习过程的点点滴滴，分享知识与思考。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">21</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Cand1eLight"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon faa-parent animated-hover" href="https://github.com/Cand1eLight" target="_blank" title="Github"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-gitHub"></use></svg></a><a class="social-icon faa-parent animated-hover" href="https://space.bilibili.com/3546557553052060" target="_blank" title="BiliBili"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili"></use></svg></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">Welcome to my blog!
+记录一些日常和学习的记录!
+Ciallo～(∠・ω< )⌒☆
+</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%97%85%E8%A1%8C%E8%A7%84%E5%88%92%E4%B8%8D%E6%98%AF%E6%96%87%E6%9C%AC%E7%94%9F%E6%88%90%E9%97%AE%E9%A2%98"><span class="toc-number">1.</span> <span class="toc-text">旅行规划不是文本生成问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E6%96%87%E7%9A%84%E4%B8%BB%E8%A6%81%E5%AE%9E%E7%8E%B0%E5%86%85%E5%AE%B9"><span class="toc-number">2.</span> <span class="toc-text">本文的主要实现内容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E5%BD%93%E5%89%8D%E7%9A%84%E8%BF%90%E8%A1%8C%E9%93%BE%E8%B7%AF"><span class="toc-number">3.</span> <span class="toc-text">项目当前的运行链路</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%AE%BE%E8%AE%A1%E8%93%9D%E5%9B%BE%EF%BC%9A%E7%94%A8-DAG-%E7%BB%99-Agent-%E5%88%92%E6%B8%85%E8%81%8C%E8%B4%A3"><span class="toc-number">4.</span> <span class="toc-text">设计蓝图：用 DAG 给 Agent 划清职责</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%AE%BE%E8%AE%A1%E7%9B%AE%E6%A0%87%E5%92%8C%E5%BD%93%E5%89%8D%E5%AE%9E%E7%8E%B0%E4%B8%8D%E6%98%AF%E4%B8%80%E5%9B%9E%E4%BA%8B"><span class="toc-number">4.1.</span> <span class="toc-text">设计目标和当前实现不是一回事</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Profiler%EF%BC%9A%E5%85%88%E6%A3%80%E6%9F%A5%E7%BA%A6%E6%9D%9F%EF%BC%8C%E5%86%8D%E5%86%B3%E5%AE%9A%E6%98%AF%E5%90%A6%E8%A7%84%E5%88%92"><span class="toc-number">5.</span> <span class="toc-text">Profiler：先检查约束，再决定是否规划</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Explorer%EF%BC%9A%E6%8A%8A%E6%A8%A1%E7%B3%8A%E5%81%8F%E5%A5%BD%E5%8F%98%E6%88%90%E5%8F%AF%E8%AE%A1%E7%AE%97%E7%9A%84-POI"><span class="toc-number">6.</span> <span class="toc-text">Explorer：把模糊偏好变成可计算的 POI</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Scheduler%EF%BC%9A%E7%9C%9F%E6%AD%A3%E5%86%B3%E5%AE%9A%E2%80%9C%E8%BF%99%E4%B8%80%E5%A4%A9%E8%83%BD%E4%B8%8D%E8%83%BD%E8%BF%99%E6%A0%B7%E8%B5%B0%E2%80%9D"><span class="toc-number">7.</span> <span class="toc-text">Scheduler：真正决定“这一天能不能这样走”</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%97%B6%E9%97%B4%E7%AA%97%E6%98%AF%E7%A1%AC%E7%BA%A6%E6%9D%9F"><span class="toc-number">7.1.</span> <span class="toc-text">时间窗是硬约束</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%93%E5%8A%9B%E5%92%8C%E8%AE%A4%E7%9F%A5%E8%B4%9F%E8%8D%B7%E6%98%AF%E5%8A%A8%E6%80%81%E7%8A%B6%E6%80%81"><span class="toc-number">7.2.</span> <span class="toc-text">体力和认知负荷是动态状态</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Fogg%E3%80%81%E5%B1%95%E6%9C%9B%E7%90%86%E8%AE%BA%E5%92%8C%E8%A1%8C%E6%9D%8E%E6%83%A9%E7%BD%9A%E5%A6%82%E4%BD%95%E7%BB%84%E5%90%88"><span class="toc-number">7.3.</span> <span class="toc-text">Fogg、展望理论和行李惩罚如何组合</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%8E%E8%A1%8C%E7%A8%8B%E5%BA%8F%E5%88%97%E5%88%B0%E7%9C%9F%E5%AE%9E%E9%81%93%E8%B7%AF"><span class="toc-number">8.</span> <span class="toc-text">从行程序列到真实道路</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SSE%EF%BC%9A%E8%AE%A9%E6%A8%A1%E5%9E%8B%E3%80%81%E7%AE%97%E6%B3%95%E5%92%8C%E5%9C%B0%E5%9B%BE%E5%90%8C%E6%97%B6%E6%9C%89%E5%8F%8D%E9%A6%88"><span class="toc-number">9.</span> <span class="toc-text">SSE：让模型、算法和地图同时有反馈</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%89%8D%E7%AB%AF%EF%BC%9A%E8%81%8A%E5%A4%A9%E6%98%AF%E5%85%A5%E5%8F%A3%EF%BC%8C%E5%9C%B0%E5%9B%BE%E6%89%8D%E6%98%AF%E7%BB%93%E6%9E%9C%E7%9A%84%E7%A9%BA%E9%97%B4%E8%A1%A8%E8%BE%BE"><span class="toc-number">10.</span> <span class="toc-text">前端：聊天是入口，地图才是结果的空间表达</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%90%E6%A0%87%E7%B3%BB%E8%BD%AC%E6%8D%A2"><span class="toc-number">10.1.</span> <span class="toc-text">坐标系转换</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%87%AA%E5%8A%A8%E7%BC%A9%E6%94%BE%E5%88%B0%E5%AE%8C%E6%95%B4%E8%B7%AF%E7%BA%BF"><span class="toc-number">10.2.</span> <span class="toc-text">自动缩放到完整路线</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%88%AA%E7%82%B9%E5%92%8C%E8%B7%AF%E7%BA%BF%E9%83%BD%E5%8F%AF%E4%BB%A5%E7%82%B9%E5%87%BB"><span class="toc-number">10.3.</span> <span class="toc-text">航点和路线都可以点击</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%B2%A1%E6%9C%89%E8%AE%A9%E6%A8%A1%E5%9E%8B%E7%9B%B4%E6%8E%A5%E7%94%9F%E6%88%90%E4%B8%80%E5%88%87"><span class="toc-number">11.</span> <span class="toc-text">为什么没有让模型直接生成一切</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9B%B4%E6%8E%A5%E8%AE%A9-LLM-%E8%A7%84%E5%88%92%E7%9A%84%E6%96%B9%E6%A1%88"><span class="toc-number">11.1.</span> <span class="toc-text">直接让 LLM 规划的方案</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MiMo-Travel-%E7%9A%84%E6%B7%B7%E5%90%88%E6%96%B9%E6%A1%88"><span class="toc-number">11.2.</span> <span class="toc-text">MiMo Travel 的混合方案</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E7%9A%84%E9%99%90%E5%88%B6"><span class="toc-number">12.</span> <span class="toc-text">当前版本的限制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%AE%8C%E6%95%B4-DAG-%E5%B0%9A%E6%9C%AA%E5%85%A8%E9%83%A8%E6%8E%A5%E5%85%A5%E4%B8%BB%E6%B5%81%E7%A8%8B"><span class="toc-number">12.1.</span> <span class="toc-text">1. 完整 DAG 尚未全部接入主流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E5%BD%93%E5%89%8D%E8%B7%AF%E7%BA%BF%E6%96%B9%E5%BC%8F%E9%80%89%E6%8B%A9%E6%98%AF%E8%B7%9D%E7%A6%BB%E5%90%AF%E5%8F%91%E5%BC%8F"><span class="toc-number">12.2.</span> <span class="toc-text">2. 当前路线方式选择是距离启发式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9A%84%E5%88%9D%E5%A7%8B%E5%9D%90%E6%A0%87%E4%BB%8D%E6%9C%89%E6%94%B9%E8%BF%9B%E7%A9%BA%E9%97%B4"><span class="toc-number">12.3.</span> <span class="toc-text">3. 调度器的初始坐标仍有改进空间</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E6%B5%8B%E8%AF%95%E4%BD%93%E7%B3%BB%E8%BF%98%E4%B8%8D%E5%A4%9F%E5%AE%8C%E6%95%B4"><span class="toc-number">12.4.</span> <span class="toc-text">4. 测试体系还不够完整</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#FAQ%EF%BC%9A%E8%BF%99%E4%B8%AA%E9%A1%B9%E7%9B%AE%E5%88%B0%E5%BA%95%E6%98%AF%E4%B8%8D%E6%98%AF%E5%A4%9A%E6%99%BA%E8%83%BD%E4%BD%93"><span class="toc-number">13.</span> <span class="toc-text">FAQ：这个项目到底是不是多智能体</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E4%BD%BF%E7%94%A8%E4%BA%86%E5%A4%9A%E5%B0%91%E4%B8%AA-Agent%EF%BC%9F"><span class="toc-number">13.1.</span> <span class="toc-text">当前版本使用了多少个 Agent？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-Scheduler-%E5%BF%85%E9%A1%BB%E5%92%8C-LLM-%E9%9A%94%E7%A6%BB%EF%BC%9F"><span class="toc-number">13.2.</span> <span class="toc-text">为什么 Scheduler 必须和 LLM 隔离？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E8%BF%94%E5%9B%9E-map-data%EF%BC%8C%E5%8F%AA%E8%BF%94%E5%9B%9E-Markdown-%E4%B8%8D%E8%A1%8C%E5%90%97%EF%BC%9F"><span class="toc-number">13.3.</span> <span class="toc-text">为什么要返回 map_data，只返回 Markdown 不行吗？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Hexo-Butterfly-%E8%83%BD%E7%9B%B4%E6%8E%A5%E4%BD%BF%E7%94%A8%E8%BF%99%E7%AF%87%E6%96%87%E7%AB%A0%E5%90%97%EF%BC%9F"><span class="toc-number">13.4.</span> <span class="toc-text">Hexo Butterfly 能直接使用这篇文章吗？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5%EF%BC%9A%E4%BB%8E%E2%80%9C%E8%83%BD%E8%A7%84%E5%88%92%E2%80%9D%E8%B5%B0%E5%90%91%E2%80%9C%E5%8F%AF%E6%8C%81%E7%BB%AD%E7%BC%96%E8%BE%91%E2%80%9D"><span class="toc-number">14.</span> <span class="toc-text">下一步：从“能规划”走向“可持续编辑”</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">15.</span> <span class="toc-text">总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%85%8D%E5%9B%BE%E6%B8%85%E5%8D%95"><span class="toc-number">16.</span> <span class="toc-text">配图清单</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="toc-number">17.</span> <span class="toc-text">参考代码位置</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/posts/f1485021.html" title="Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路"><img src="https://204180371.xyz/PicGo/FCCE41AA8576CD034C2A7782EF7CB846.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路"/></a><div class="content"><a class="title" href="/posts/f1485021.html" title="Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路">Mimo-Travel:把大模型旅行规划变成一条可执行的数据链路</a><time datetime="2026-07-12T15:26:19.000Z" title="发表于 2026-07-12 23:26:19">2026-07-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/8f7a9b2c.html" title="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record"><img src="https://204180371.xyz/PicGo/DD9C6A49B7E0D7A2121AAC70E4F6B6A9.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record"/></a><div class="content"><a class="title" href="/posts/8f7a9b2c.html" title="From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record">From Blind Faith in AI to Reverence for the Market: My Quantitative Trading Adventures, Pitfalls, and Awakening Record</a><time datetime="2026-03-30T14:00:00.000Z" title="发表于 2026-03-30 22:00:00">2026-03-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/1d7390fa.html" title="量子-机器学习QCNN代码复现"><img src="https://204180371.xyz/PicGo/D9A8D7A0140D79A8A2705B88C9153F68.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="量子-机器学习QCNN代码复现"/></a><div class="content"><a class="title" href="/posts/1d7390fa.html" title="量子-机器学习QCNN代码复现">量子-机器学习QCNN代码复现</a><time datetime="2026-03-16T15:46:08.000Z" title="发表于 2026-03-16 23:46:08">2026-03-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/3069dbbd.html" title="尝试机器学习和深度学习"><img src="https://204180371.xyz/PicGo/105CA4DF96921225CC2C17F4C62B37BF.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="尝试机器学习和深度学习"/></a><div class="content"><a class="title" href="/posts/3069dbbd.html" title="尝试机器学习和深度学习">尝试机器学习和深度学习</a><time datetime="2026-01-30T14:56:26.000Z" title="发表于 2026-01-30 22:56:26">2026-01-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/db47ba97.html" title="倒计时172天|建立体系，根据体系行动"><img src="https://api.mtyqx.cn/api/random.php" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="倒计时172天|建立体系，根据体系行动"/></a><div class="content"><a class="title" href="/posts/db47ba97.html" title="倒计时172天|建立体系，根据体系行动">倒计时172天|建立体系，根据体系行动</a><time datetime="2025-07-02T15:37:47.000Z" title="发表于 2025-07-02 23:37:47">2025-07-02</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2025 - 2026 By 祝炩烟</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><div class="js-pjax"></div><div class="aplayer no-destroy" data-id="8152976493" data-server="netease" data-type="playlist"
+data-order="list" data-fixed="true" data-preload="auto" data-autoplay="false" data-mutex="true"></div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/metingjs/dist/Meting.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索………" type="text"/></div></div><hr/><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></div><!-- hexo injector body_end start --><script data-pjax>
+  function butterfly_clock_anzhiyu_injector_config(){
+    var parent_div_git = document.getElementsByClassName('sticky_layout')[0];
+    var item_html = '<div class="card-widget card-clock"><div class="card-glass"><div class="card-background"><div class="card-content"><div id="hexo_electric_clock"><img class="entered loading" id="card-clock-loading" src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/loading.gif" style="height: 120px; width: 100%;" data-ll-status="loading"/></div></div></div></div></div>';
+    console.log('已挂载butterfly_clock_anzhiyu')
+    if(parent_div_git) {
+      parent_div_git.insertAdjacentHTML("afterbegin",item_html)
+    }
+  }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var qweather_key = 'f7394b7c1a5446feb791aedeecba4ecc';
+  var gaud_map_key = '66a3f75fe3a288fca105be2131c0ea6e';
+  var baidu_ak_key = 'undefined';
+  var flag = 0;
+  var clock_rectangle = '112.6534116,27.96920845';
+  var clock_default_rectangle_enable = 'true';
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  </script><script src="https://widget.qweather.net/simple/static/js/he-simple-common.js?v=2.0"></script><script data-pjax src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.js"></script><script data-pjax>
+  function butterfly_footer_beautify_injector_config(){
+    var parent_div_git = document.getElementById('footer-wrap');
+    var item_html = '<div id="workboard"></div><p id="ghbdages"><a class="github-badge" target="_blank" href="https://hexo.io/" style="margin-inline:5px" data-title="博客框架为Hexo_v5.4.0" title=""><img src="https://img.shields.io/badge/Frame-Hexo-blue?style=flat&amp;logo=hexo" alt=""/></a><a class="github-badge" target="_blank" href="https://butterfly.js.org/" style="margin-inline:5px" data-title="主题版本Butterfly_v4.2.2" title=""><img src="https://img.shields.io/badge/Theme-Butterfly-6513df?style=flat&amp;logo=bitdefender" alt=""/></a><a class="github-badge" target="_blank" href="https://www.jsdelivr.com/" style="margin-inline:5px" data-title="本站使用JsDelivr为静态资源提供CDN加速" title=""><img src="https://img.shields.io/badge/CDN-jsDelivr-orange?style=flat&amp;logo=jsDelivr" alt=""/></a><a class="github-badge" target="_blank" href="https://github.com/" style="margin-inline:5px" data-title="本站项目由Github托管" title=""><img src="https://img.shields.io/badge/Source-Github-d021d6?style=flat&amp;logo=GitHub" alt=""/></a><a class="github-badge" target="_blank" href="http://creativecommons.org/licenses/by-nc-sa/4.0/" style="margin-inline:5px" data-title="本站采用知识共享署名-非商业性使用-相同方式共享4.0国际许可协议进行许可" title=""><img src="https://img.shields.io/badge/Copyright-BY--NC--SA%204.0-d42328?style=flat&amp;logo=Claris" alt=""/></a></p>';
+    console.log('已挂载butterfly_footer_beautify')
+    parent_div_git.insertAdjacentHTML("beforeend",item_html)
+    }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var flag = 0;
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_footer_beautify_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_footer_beautify_injector_config();
+  }
+  </script><script async src="/js/runtime/runtime.js"></script><div class="js-pjax"><script async="async">var arr = document.getElementsByClassName('recent-post-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '30');
+    arr[i].setAttribute('data-wow-iteration', '1');
+  }</script><script async="async">var arr = document.getElementsByClassName('card-widget');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('article-sort-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__slideInRight');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script></div><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow.min.js"></script><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow_init.js"></script><script async src="/js/ali_font.js"></script><!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/koharu.model.json"},"display":{"position":"left","width":150,"height":850},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/"});</script></body></html>
