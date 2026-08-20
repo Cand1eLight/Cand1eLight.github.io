@@ -39,13 +39,13 @@
     
     <category term="D2L" scheme="https://cand1elight.github.io/tags/D2L/"/>
     
-    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
-    
     <category term="CNN" scheme="https://cand1elight.github.io/tags/CNN/"/>
     
-    <category term="学习路径" scheme="https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E8%B7%AF%E5%BE%84/"/>
+    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
     
     <category term="PyTorch" scheme="https://cand1elight.github.io/tags/PyTorch/"/>
+    
+    <category term="学习路径" scheme="https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E8%B7%AF%E5%BE%84/"/>
     
   </entry>
   
@@ -144,8 +144,6 @@
     
     <category term="D2L" scheme="https://cand1elight.github.io/tags/D2L/"/>
     
-    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
-    
     <category term="CNN" scheme="https://cand1elight.github.io/tags/CNN/"/>
     
     <category term="卷积" scheme="https://cand1elight.github.io/tags/%E5%8D%B7%E7%A7%AF/"/>
@@ -155,6 +153,8 @@
     <category term="Pooling" scheme="https://cand1elight.github.io/tags/Pooling/"/>
     
     <category term="LeNet" scheme="https://cand1elight.github.io/tags/LeNet/"/>
+    
+    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
     
   </entry>
   
@@ -192,14 +192,15 @@
     <link href="https://cand1elight.github.io/posts/259dab54.html"/>
     <id>https://cand1elight.github.io/posts/259dab54.html</id>
     <published>2026-08-14T16:00:00.000Z</published>
-    <updated>2026-08-20T02:58:32.753Z</updated>
+    <updated>2026-08-20T04:42:44.217Z</updated>
     
-    <content type="html"><![CDATA[<h2 id="今日状态"><a href="#今日状态" class="headerlink" title="今日状态"></a>今日状态</h2><p>D2L 第 5 章第一遍完成。当天的重点不是某个新模型，而是理解 PyTorch 如何把模型变成可组织、可保存、可迁移的对象。</p><hr><h2 id="一、Module-是统一的组件抽象"><a href="#一、Module-是统一的组件抽象" class="headerlink" title="一、Module 是统一的组件抽象"></a>一、Module 是统一的组件抽象</h2><p>当天曾把 <code>Module</code> 直觉化成“多个 MLP 的组合”，后来改成更准确的版本：<code>nn.Module</code> 可以表示一层、一个 block，也可以表示整个模型。</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">MyNet</span>(nn.Module):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__()</span><br><span class="line">        <span class="variable language_">self</span>.net = nn.Sequential(...)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">forward</span>(<span class="params">self, X</span>):</span><br><span class="line">        <span class="keyword">return</span> <span class="variable language_">self</span>.net(X)</span><br></pre></td></tr></table></figure><p><code>Sequential</code> 只是按顺序串联模块；<code>forward</code> 才定义数据经过模型时的计算路径。</p><hr><h2 id="二、参数管理：注册比“变量存在”更重要"><a href="#二、参数管理：注册比“变量存在”更重要" class="headerlink" title="二、参数管理：注册比“变量存在”更重要"></a>二、参数管理：注册比“变量存在”更重要</h2><p>模型参数通常是 <code>nn.Parameter</code>。只有被模块正确注册，PyTorch 才能通过 <code>net.parameters()</code> 找到它们，并交给优化器更新。</p><p>当天逐项区分了：</p><div class="table-container"><table><thead><tr><th>对象</th><th>含义</th></tr></thead><tbody><tr><td><code>weight</code> / <code>bias</code></td><td>某层的可学习参数</td></tr><tr><td><code>.grad</code></td><td>当前反向传播得到的梯度</td></tr><tr><td><code>state_dict()</code></td><td>参数与持久化状态的字典</td></tr><tr><td><code>named_parameters()</code></td><td>带名称遍历参数</td></tr><tr><td><code>net.parameters()</code></td><td>递归找到子模块中的已注册参数</td></tr></tbody></table></div><p>初始化的目的，是让信号与梯度在网络中更容易稳定传播；Xavier 只是其中一种方法，不等于“初始化”这个概念本身。</p><p>共享参数时，同一个参数参与多处计算，反向传播会把各处贡献累加到同一个 <code>.grad</code> 中。</p><hr><h2 id="三、延迟初始化：按-shape-推断，不看数值"><a href="#三、延迟初始化：按-shape-推断，不看数值" class="headerlink" title="三、延迟初始化：按 shape 推断，不看数值"></a>三、延迟初始化：按 shape 推断，不看数值</h2><p>某些层在第一次接收输入前还不知道输入特征数，第一次前向时才根据输入 shape 创建参数。判断它需要什么参数的是维度结构，而不是输入里的具体数值。</p><p>当天还确认：教材页面出现的某些 D2L 代码与本地 PyTorch API 不完全一致，这是资料版本差异，不是漏学。</p><hr><h2 id="四、自定义层与保存-加载"><a href="#四、自定义层与保存-加载" class="headerlink" title="四、自定义层与保存/加载"></a>四、自定义层与保存/加载</h2><p>自定义层的最小心智模型是：</p><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">__init__  → 声明子模块与参数</span><br><span class="line">forward   → 定义数据如何流过</span><br></pre></td></tr></table></figure><p>一个自定义层也可以没有可训练参数，只要它封装了一段可复用的计算。</p><p>保存与加载的核心是：</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">torch.save(net.state_dict(), <span class="string">&quot;model.params&quot;</span>)</span><br><span class="line">net.load_state_dict(torch.load(<span class="string">&quot;model.params&quot;</span>))</span><br></pre></td></tr></table></figure><p>这里保存的是参数与状态；要恢复可运行模型，还需要相同的网络结构定义。</p><hr><h2 id="五、GPU：设备必须对齐"><a href="#五、GPU：设备必须对齐" class="headerlink" title="五、GPU：设备必须对齐"></a>五、GPU：设备必须对齐</h2><p><code>cuda:0</code> 表示编号为 0 的第一块 CUDA 设备，不代表机器只有一块 GPU。GPU 数量要用 <code>torch.cuda.device_count()</code> 查看。</p><p>模型、输入和标签必须位于兼容的同一设备：</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">device = torch.device(<span class="string">&quot;cuda&quot;</span> <span class="keyword">if</span> torch.cuda.is_available() <span class="keyword">else</span> <span class="string">&quot;cpu&quot;</span>)</span><br><span class="line">net.to(device)</span><br><span class="line">X, y = X.to(device), y.to(device)</span><br></pre></td></tr></table></figure><p>如果模型在 GPU、数据在 CPU，或标签没有迁移，计算就会因 device mismatch 失败。</p><hr><h2 id="阶段结论"><a href="#阶段结论" class="headerlink" title="阶段结论"></a>阶段结论</h2><p>第 5 章让“模型会不会算”推进到“模型能不能被组织、保存、迁移和复用”。这为后面的 CNN block、残差块和 DenseBlock 提供了工程语言。</p><p><strong>下一步</strong>：进入卷积的局部连接、权重共享、padding、stride、通道和池化。</p>]]></content>
+    <content type="html"><![CDATA[<p><img src="https://204180371.xyz/PicGo/EB8404FE75B50F8364239A18FDC79FCF.jpg" alt=""></p><h2 id="今日状态"><a href="#今日状态" class="headerlink" title="今日状态"></a>今日状态</h2><p>D2L 第 5 章第一遍完成。当天的重点不是某个新模型，而是理解 PyTorch 如何把模型变成可组织、可保存、可迁移的对象。</p><hr><h2 id="一、Module-是统一的组件抽象"><a href="#一、Module-是统一的组件抽象" class="headerlink" title="一、Module 是统一的组件抽象"></a>一、Module 是统一的组件抽象</h2><p>当天曾把 <code>Module</code> 直觉化成“多个 MLP 的组合”，后来改成更准确的版本：<code>nn.Module</code> 可以表示一层、一个 block，也可以表示整个模型。</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">MyNet</span>(nn.Module):</span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self</span>):</span><br><span class="line">        <span class="built_in">super</span>().__init__()</span><br><span class="line">        <span class="variable language_">self</span>.net = nn.Sequential(...)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">def</span> <span class="title function_">forward</span>(<span class="params">self, X</span>):</span><br><span class="line">        <span class="keyword">return</span> <span class="variable language_">self</span>.net(X)</span><br></pre></td></tr></table></figure><p><code>Sequential</code> 只是按顺序串联模块；<code>forward</code> 才定义数据经过模型时的计算路径。</p><hr><h2 id="二、参数管理：注册比“变量存在”更重要"><a href="#二、参数管理：注册比“变量存在”更重要" class="headerlink" title="二、参数管理：注册比“变量存在”更重要"></a>二、参数管理：注册比“变量存在”更重要</h2><p>模型参数通常是 <code>nn.Parameter</code>。只有被模块正确注册，PyTorch 才能通过 <code>net.parameters()</code> 找到它们，并交给优化器更新。</p><p>当天逐项区分了：</p><div class="table-container"><table><thead><tr><th>对象</th><th>含义</th></tr></thead><tbody><tr><td><code>weight</code> / <code>bias</code></td><td>某层的可学习参数</td></tr><tr><td><code>.grad</code></td><td>当前反向传播得到的梯度</td></tr><tr><td><code>state_dict()</code></td><td>参数与持久化状态的字典</td></tr><tr><td><code>named_parameters()</code></td><td>带名称遍历参数</td></tr><tr><td><code>net.parameters()</code></td><td>递归找到子模块中的已注册参数</td></tr></tbody></table></div><p>初始化的目的，是让信号与梯度在网络中更容易稳定传播；Xavier 只是其中一种方法，不等于“初始化”这个概念本身。</p><p>共享参数时，同一个参数参与多处计算，反向传播会把各处贡献累加到同一个 <code>.grad</code> 中。</p><hr><h2 id="三、延迟初始化：按-shape-推断，不看数值"><a href="#三、延迟初始化：按-shape-推断，不看数值" class="headerlink" title="三、延迟初始化：按 shape 推断，不看数值"></a>三、延迟初始化：按 shape 推断，不看数值</h2><p>某些层在第一次接收输入前还不知道输入特征数，第一次前向时才根据输入 shape 创建参数。判断它需要什么参数的是维度结构，而不是输入里的具体数值。</p><p>当天还确认：教材页面出现的某些 D2L 代码与本地 PyTorch API 不完全一致，这是资料版本差异，不是漏学。</p><hr><h2 id="四、自定义层与保存-加载"><a href="#四、自定义层与保存-加载" class="headerlink" title="四、自定义层与保存/加载"></a>四、自定义层与保存/加载</h2><p>自定义层的最小心智模型是：</p><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">__init__  → 声明子模块与参数</span><br><span class="line">forward   → 定义数据如何流过</span><br></pre></td></tr></table></figure><p>一个自定义层也可以没有可训练参数，只要它封装了一段可复用的计算。</p><p>保存与加载的核心是：</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">torch.save(net.state_dict(), <span class="string">&quot;model.params&quot;</span>)</span><br><span class="line">net.load_state_dict(torch.load(<span class="string">&quot;model.params&quot;</span>))</span><br></pre></td></tr></table></figure><p>这里保存的是参数与状态；要恢复可运行模型，还需要相同的网络结构定义。</p><hr><h2 id="五、GPU：设备必须对齐"><a href="#五、GPU：设备必须对齐" class="headerlink" title="五、GPU：设备必须对齐"></a>五、GPU：设备必须对齐</h2><p><code>cuda:0</code> 表示编号为 0 的第一块 CUDA 设备，不代表机器只有一块 GPU。GPU 数量要用 <code>torch.cuda.device_count()</code> 查看。</p><p>模型、输入和标签必须位于兼容的同一设备：</p><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">device = torch.device(<span class="string">&quot;cuda&quot;</span> <span class="keyword">if</span> torch.cuda.is_available() <span class="keyword">else</span> <span class="string">&quot;cpu&quot;</span>)</span><br><span class="line">net.to(device)</span><br><span class="line">X, y = X.to(device), y.to(device)</span><br></pre></td></tr></table></figure><p>如果模型在 GPU、数据在 CPU，或标签没有迁移，计算就会因 device mismatch 失败。</p><hr><h2 id="阶段结论"><a href="#阶段结论" class="headerlink" title="阶段结论"></a>阶段结论</h2><p>第 5 章让“模型会不会算”推进到“模型能不能被组织、保存、迁移和复用”。这为后面的 CNN block、残差块和 DenseBlock 提供了工程语言。</p><p><strong>下一步</strong>：进入卷积的局部连接、权重共享、padding、stride、通道和池化。</p>]]></content>
     
     
       
       
-    <summary type="html">&lt;h2 id=&quot;今日状态&quot;&gt;&lt;a href=&quot;#今日状态&quot; class=&quot;headerlink&quot; title=&quot;今日状态&quot;&gt;&lt;/a&gt;今日状态&lt;/h2&gt;&lt;p&gt;D2L 第 5 章第一遍完成。当天的重点不是某个新模型，而是理解 PyTorch 如何把模型变成可组织、可保存、可迁移的对象</summary>
+    <summary type="html">&lt;p&gt;&lt;img src=&quot;https://204180371.xyz/PicGo/EB8404FE75B50F8364239A18FDC79FCF.jpg&quot; alt=&quot;&quot;&gt;&lt;/p&gt;
+&lt;h2 id=&quot;今日状态&quot;&gt;&lt;a href=&quot;#今日状态&quot; class=&quot;headerlink&quot; </summary>
       
     
     
@@ -277,6 +278,8 @@
     
     <category term="D2L" scheme="https://cand1elight.github.io/tags/D2L/"/>
     
+    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
+    
     <category term="MLP" scheme="https://cand1elight.github.io/tags/MLP/"/>
     
     <category term="ReLU" scheme="https://cand1elight.github.io/tags/ReLU/"/>
@@ -284,8 +287,6 @@
     <category term="Weight Decay" scheme="https://cand1elight.github.io/tags/Weight-Decay/"/>
     
     <category term="Dropout" scheme="https://cand1elight.github.io/tags/Dropout/"/>
-    
-    <category term="深度学习" scheme="https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/"/>
     
   </entry>
   
@@ -384,9 +385,9 @@
     
     <category term="PyTorch" scheme="https://cand1elight.github.io/tags/PyTorch/"/>
     
-    <category term="Linear Regression" scheme="https://cand1elight.github.io/tags/Linear-Regression/"/>
-    
     <category term="Softmax" scheme="https://cand1elight.github.io/tags/Softmax/"/>
+    
+    <category term="Linear Regression" scheme="https://cand1elight.github.io/tags/Linear-Regression/"/>
     
   </entry>
   

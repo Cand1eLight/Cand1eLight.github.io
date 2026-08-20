@@ -2,6 +2,15 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://cand1elight.github.io/posts/259dab54.html</loc>
+    
+    <lastmod>2026-08-20</lastmod>
+    
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
     <loc>https://cand1elight.github.io/posts/c6d96c68.html</loc>
     
     <lastmod>2026-08-20</lastmod>
@@ -66,15 +75,6 @@
   
   <url>
     <loc>https://cand1elight.github.io/posts/a02823fe.html</loc>
-    
-    <lastmod>2026-08-20</lastmod>
-    
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/posts/259dab54.html</loc>
     
     <lastmod>2026-08-20</lastmod>
     
@@ -335,70 +335,7 @@
 
   
   <url>
-    <loc>https://cand1elight.github.io/tags/%E7%AE%97%E6%B3%95/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
     <loc>https://cand1elight.github.io/tags/D2L/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E5%A4%8D%E7%9B%98/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/MLP/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/ReLU/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/Weight-Decay/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/Dropout/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
@@ -440,7 +377,63 @@
   </url>
   
   <url>
-    <loc>https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E8%B7%AF%E5%BE%84/</loc>
+    <loc>https://cand1elight.github.io/tags/%E6%B7%B1%E5%BA%A6%E5%AD%A6%E4%B9%A0/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E5%A4%8D%E7%9B%98/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/%E7%AE%97%E6%B3%95/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/MLP/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/ReLU/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/Weight-Decay/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/Dropout/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
@@ -454,14 +447,21 @@
   </url>
   
   <url>
-    <loc>https://cand1elight.github.io/tags/Linear-Regression/</loc>
+    <loc>https://cand1elight.github.io/tags/Module/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
   </url>
   
   <url>
-    <loc>https://cand1elight.github.io/tags/Softmax/</loc>
+    <loc>https://cand1elight.github.io/tags/state-dict/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/GPU/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
@@ -496,6 +496,13 @@
   </url>
   
   <url>
+    <loc>https://cand1elight.github.io/tags/Softmax/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
     <loc>https://cand1elight.github.io/tags/Fashion-MNIST/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
@@ -510,21 +517,35 @@
   </url>
   
   <url>
-    <loc>https://cand1elight.github.io/tags/Module/</loc>
+    <loc>https://cand1elight.github.io/tags/%E5%AD%A6%E4%B9%A0%E8%B7%AF%E5%BE%84/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
   </url>
   
   <url>
-    <loc>https://cand1elight.github.io/tags/state-dict/</loc>
+    <loc>https://cand1elight.github.io/tags/Linear-Regression/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
   </url>
   
   <url>
-    <loc>https://cand1elight.github.io/tags/GPU/</loc>
+    <loc>https://cand1elight.github.io/tags/%E5%8F%8D%E5%90%91%E4%BC%A0%E6%92%AD/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/Kaggle/</loc>
+    <lastmod>2026-08-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.2</priority>
+  </url>
+  
+  <url>
+    <loc>https://cand1elight.github.io/tags/Docker/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
@@ -560,27 +581,6 @@
   
   <url>
     <loc>https://cand1elight.github.io/tags/BatchNorm/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/%E5%8F%8D%E5%90%91%E4%BC%A0%E6%92%AD/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/Kaggle/</loc>
-    <lastmod>2026-08-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.2</priority>
-  </url>
-  
-  <url>
-    <loc>https://cand1elight.github.io/tags/Docker/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.2</priority>
