@@ -385,9 +385,9 @@
     
     <category term="PyTorch" scheme="https://cand1elight.github.io/tags/PyTorch/"/>
     
-    <category term="Softmax" scheme="https://cand1elight.github.io/tags/Softmax/"/>
-    
     <category term="Linear Regression" scheme="https://cand1elight.github.io/tags/Linear-Regression/"/>
+    
+    <category term="Softmax" scheme="https://cand1elight.github.io/tags/Softmax/"/>
     
   </entry>
   
