@@ -1,0 +1,650 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena | 祝炩烟's Blog</title><meta name="author" content="祝炩烟"><meta name="copyright" content="祝炩烟"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="记录 2026 年 9 月 1 日至 7 日的科研推进：GazeShift 论文精读与证据审查、MCUNetV2 的内存问题、TensorFlow Lite Micro 的静态内存运行时，以及由此重构的端侧连续视觉研究路线。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena">
+<meta property="og:url" content="https://cand1elight.github.io/posts/f0b5a411.html">
+<meta property="og:site_name" content="祝炩烟&#39;s Blog">
+<meta property="og:description" content="记录 2026 年 9 月 1 日至 7 日的科研推进：GazeShift 论文精读与证据审查、MCUNetV2 的内存问题、TensorFlow Lite Micro 的静态内存运行时，以及由此重构的端侧连续视觉研究路线。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg">
+<meta property="article:published_time" content="2026-09-06T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-07T02:22:16.492Z">
+<meta property="article:author" content="祝炩烟">
+<meta property="article:tag" content="科研周报">
+<meta property="article:tag" content="Edge AI">
+<meta property="article:tag" content="TinyML">
+<meta property="article:tag" content="GazeShift">
+<meta property="article:tag" content="TensorFlow Lite Micro">
+<meta property="article:tag" content="MCUNetV2">
+<meta property="article:tag" content="论文精读">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena",
+  "url": "https://cand1elight.github.io/posts/f0b5a411.html",
+  "image": "https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg",
+  "datePublished": "2026-09-06T16:00:00.000Z",
+  "dateModified": "2026-09-07T02:22:16.492Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "祝炩烟",
+      "url": "https://cand1elight.github.io/"
+    }
+  ]
+}</script><link rel="shortcut icon" href="https://204180371.xyz/PicGo/youzi.png"><link rel="canonical" href="https://cand1elight.github.io/posts/f0b5a411.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":true,"top_n_per_article":3,"unescape":false,"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css" media="defer" onload="this.media='all'"><!-- hexo injector head_end start --><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.css" /><link rel="stylesheet" href="https://npm.elemecdn.com/anzhiyu-blog@2.0.4/css/runtime/runtime.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/animate.min.css" media="print" onload="this.media='screen'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/font-awesome-animation.min.css" media="defer" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/tag_plugins.css" media="defer" onload="this.media='all'"><script src="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/carousel-touch.js"></script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body><div id="web_bg" style="background-image: url(https://204180371.xyz/PicGo/fulilian.jpg);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">38</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">73</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="https://204180371.xyz/PicGo/youzi.png" alt="Logo"><span class="site-name">祝炩烟's Blog</span></a><a class="nav-page-title" href="/"><span class="site-name">2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena</span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-06T16:00:00.000Z" title="发表于 2026-09-07 00:00:00">2026-09-07</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-07T02:22:16.492Z" title="更新于 2026-09-07 10:22:16">2026-09-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%A4%8D%E7%9B%98/">技术复盘</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p><img src="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg" alt="封面"></p>
+<blockquote>
+<p><strong>记录区间：2026 年 9 月 1 日—9 月 7 日（香港时间）。</strong></p>
+<p>这是一篇只记录科研活动的周报。它基于本周对话中能够核验的阅读、推导、判断与问题；没有记录到的板端实验、逐层 profile、新模型训练和 benchmark，不会被补写成“已经完成”。9 月 7 日也没有可归入科研的实质记录，因此不把它虚构成一个成果日。</p>
+</blockquote>
+<p>这一周最重要的进展，并不是又跑通了一个 demo，也不是得到了一个好看的数字，而是我开始把下面这件事当成研究本身：<strong>一个模型为什么有效，它的证据够不够，结论在哪些条件下会失效，真实系统的瓶颈又到底在哪里。</strong></p>
+<p>我在三个层面反复来回：论文中的表征与实验设计、数学公式能否被说成严谨的推导、模型进入 MCU 后的张量生命周期和执行成本。它们最后指向了同一个问题：如果未来要做端侧连续第一人称视觉，不能只说“模型很轻”或“量化了”，必须知道每一帧在何处消耗了内存、时间和能量。</p>
+<p><img src="https://204180371.xyz/PicGo/research-week-timeline@2x.png" alt="本周科研进展图"></p>
+<h2 id="一周的研究轨迹"><a href="#一周的研究轨迹" class="headerlink" title="一周的研究轨迹"></a>一周的研究轨迹</h2><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>时间</th>
+<th>已核验的推进</th>
+<th>这一步真正解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>9 月 1 日</td>
+<td>GazeShift 校准协议、MediaPipe/HaGRIDv2 的模型与数据边界复核</td>
+<td>不再把论文版本、当前 Task 模型、演示分类头和数据集能力混成一句话</td>
+</tr>
+<tr>
+<td>9 月 2 日</td>
+<td>正定性、Ridge、SVM 几何、ReLU 逼近、shape 的集中推导</td>
+<td>把“会背公式”推进到“能说明为什么成立”</td>
+</tr>
+<tr>
+<td>9 月 3 日</td>
+<td>完成 GazeShift 正文、附录和实验的精读</td>
+<td>从“读结果”转向“审证据、找混杂、写可证伪假设”</td>
+</tr>
+<tr>
+<td>9 月 4 日</td>
+<td>重构长期研究主线；MCUNetV2 首读后切换到 TFLM</td>
+<td>不再先假定内存就是瓶颈，而是先补齐 runtime 和测量语言</td>
+</tr>
+<tr>
+<td>9 月 4—6 日</td>
+<td>完成 TensorFlow Lite Micro（TFLM）全文精读</td>
+<td>建立从 <code>.tflite</code>、Interpreter、Kernel 到 Tensor Arena 的完整执行链</td>
+</tr>
+<tr>
+<td>9 月 7 日</td>
+<td>无可核验的科研记录</td>
+<td>保留空白，而不是为了周报完整性虚构进展</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这张时间表看起来没有“训练了多少 epoch”或“刷新了多少 FPS”，但它完成了一次很关键的研究基础设施建设：我开始能把一个端侧 AI 问题拆成<strong>数据与任务定义、模型表征、运行时、算子、内存、硬件、证据边界</strong>几个层次，而不是把它们全部称作“模型效果”。</p>
+<h2 id="GazeShift：从看懂结果，到检查它到底证明了什么"><a href="#GazeShift：从看懂结果，到检查它到底证明了什么" class="headerlink" title="GazeShift：从看懂结果，到检查它到底证明了什么"></a>GazeShift：从看懂结果，到检查它到底证明了什么</h2><p>本周完成了对 <strong>GazeShift</strong> 的完整精读。它最初吸引我的地方，是它把视线估计转成了一个无 gaze 标签的表征学习问题：给定 source appearance 和 target gaze，重建 target eye image；部署时保留 gaze encoder，再用少量带标签的校准样本拟合 gaze direction。</p>
+<p>真正需要纠正的第一点，是“无监督”不能被简化成“完全不需要标签”。论文中的强结果是无监督表征预训练加上个人少样本校准，而不是零校准的 gaze estimation。以 VR 实验为例，<code>per-person</code> 的 <code>1.84°</code> 需要每个人自己的带标签校准点；<code>K=100/200</code> 指的正是这种校准点数量，不是 KNN，也不是交叉验证折数。<code>person-agnostic</code> 则使用共享的校准器，使用上更方便，却更难吸收个体眼部生理差异和设备佩戴误差。</p>
+<p>这一点让我开始警惕论文里“好看的一个数字”。<code>1.84°</code> 的语境比数字本身重要：它优于文中的 Cross-Encoder <code>2.15°</code>，但仍没有超过监督的 appearance-based baseline <code>1.54°</code>；普通 VAE 为 <code>5.30°</code> 也说明，只会重建图像并不会自然得到好的 gaze 表征。结论应当是“这种训练设计在受控设定下给出了较强、可校准的表征”，而不是“无监督方法已经彻底胜过监督方法”。</p>
+<h3 id="γ、校准与注意力：几个一开始容易说错的细节"><a href="#γ、校准与注意力：几个一开始容易说错的细节" class="headerlink" title="γ、校准与注意力：几个一开始容易说错的细节"></a>γ、校准与注意力：几个一开始容易说错的细节</h3><p>阅读时我把一些易混概念逐一拆开了。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>容易混淆的说法</th>
+<th>本周校正后的理解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>γ=2</code> 是把 attention “乘二”</td>
+<td><code>γ</code> 是 attention 权重的幂变换超参数；<code>γ=2</code> 是平方，<code>γ&gt;1</code> 会更尖锐地聚焦，<code>γ&lt;1</code> 会摊平关注区域</td>
+</tr>
+<tr>
+<td>最强 attention 点就是模型依赖的唯一视觉线索</td>
+<td>论文中 <code>γ=1</code> 最好，反而提示 gaze 还要利用眼睑、虹膜轮廓、glint 等上下文；attention map 是支持性证据，不是因果证明</td>
+</tr>
+<tr>
+<td>视线表征预训练无标签，因此最后输出也不需要标签</td>
+<td>预训练阶段不需要 gaze labels；输出 gaze direction 仍要用少量标签校准</td>
+</tr>
+<tr>
+<td>Exynos 上 <code>5 ms</code> 就是端到端实时延迟</td>
+<td>该数字只对应双眼 gaze encoder，不代表整条相机、裁剪、传输、后处理与显示链路，更不能外推到 Cortex-A55 或 MCU</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这张表背后其实是一个心态变化：<strong>不要把一个局部结论的修辞强度，放大成系统级结论。</strong></p>
+<h3 id="样本配对不只是-data-loader-的细节"><a href="#样本配对不只是-data-loader-的细节" class="headerlink" title="样本配对不只是 data loader 的细节"></a>样本配对不只是 data loader 的细节</h3><p>GazeShift 的远程相机实验给了我本周最有价值的一次理解转折。此前我会把“短时间窗口取 source-target 对”的动机理解为：照片相似、数据更多、训练不容易过拟合。更准确的解释却是 <strong>shortcut learning</strong>。</p>
+<p>如果 source 与 target 眼图几乎完全一样，decoder 可以直接借 appearance 把 target 重建出来，而不必使用 gaze embedding；那么看似很低的 reconstruction loss，并不能证明模型学会了 gaze。窗口太长又会引入光照、头姿、裁剪漂移、瞳孔变化等非 gaze 因素。换言之，窗口长度实际上在控制两种风险之间的平衡：</p>
+<p>[<br>\text{窗口过短} \Rightarrow \text{appearance shortcut};<br>\qquad<br>\text{窗口过长} \Rightarrow \text{non-gaze confounders}.<br>]</p>
+<p>我因此把原本的模糊怀疑——“attention 会不会只是盯着高对比度虹膜边缘？”——改写成一个能被实验否定的 <code>gaze × contrast</code> 2×2 对照。除了看预测结果，还应同时测：</p>
+<ul>
+<li>embedding cosine distance；</li>
+<li>mean angular error；</li>
+<li>attention 区域随 gaze 与 contrast 条件变化的模式。</li>
+</ul>
+<p>这样才能区分“模型真的编码了 gaze”与“模型只是追逐高对比度外观”。这也是我第一次很明确地感到：<strong>自监督里，样本怎么配对，本身就在定义模型被迫学习什么。</strong></p>
+<p>远程相机实验中还有一个需要克制表述的对比：MobileNetV2 版本的 <code>8.00° / 1M parameters / 2M FLOPs</code> 对比 Cross-Encoder 的 <code>8.32° / 11M parameters / 75M FLOPs</code>，有意义的重点是效率—精度折中；而 <code>7.20° → 7.15°</code> 这样的 <code>0.05°</code> 差异，在没有多随机种子、方差或显著性检验的情况下，不能被写成“显著领先”。</p>
+<h3 id="从论文的假设，走向-AR-MR-条件下可能失效的位置"><a href="#从论文的假设，走向-AR-MR-条件下可能失效的位置" class="headerlink" title="从论文的假设，走向 AR/MR 条件下可能失效的位置"></a>从论文的假设，走向 AR/MR 条件下可能失效的位置</h3><p>我过去会笼统地说“强光会造成 domain shift”。本周把它推进得更具体：GazeShift 的训练假设之一，是同一只眼在成对帧之间的关键变化主要来自 gaze；但在 AR/MR 的强光、反射、瞳孔变化或佩戴滑移条件下，帧间变化可能主要来自这些非 gaze 因素。这里不再只是“数据分布变了”，而是<strong>训练信号的因果前提本身有可能失效</strong>。</p>
+<p>因此对 GazeShift 最稳妥的总结是：它通过 source appearance 与 target gaze 重建目标眼图，在没有 gaze 标签的预训练中获得表征；再结合少量个人校准，在受控 VR 条件下得到很强的结果。它尚未证明自己在强光、反射、跨设备和佩戴滑移下仍然可靠。</p>
+<h2 id="9-月-1-日的系统核验：模型小，不等于整个系统小"><a href="#9-月-1-日的系统核验：模型小，不等于整个系统小" class="headerlink" title="9 月 1 日的系统核验：模型小，不等于整个系统小"></a>9 月 1 日的系统核验：模型小，不等于整个系统小</h2><p>本周也回头核对了 MediaPipe Hands、HaGRIDv2 和已有的轻量分类头。这个过程并不光彩，却很必要：此前有一些表述容易把论文里的 Light/Full/Heavy、当前 Hand Landmarker Task bundle、我自己训练的 Tiny MLP 和完整视觉前端说成同一件事。它们其实是不同版本、不同层级的对象。</p>
+<p>几个要保留下来的边界如下。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>对象</th>
+<th>应有的准确表述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MediaPipe Hands 论文训练数据</td>
+<td>论文提到的 <code>6K in-the-wild + 10K in-house + 100K synthetic</code> 与当前官方 Task 模型约 <code>30K</code> 真实图像的说法，不能混成同一个训练集叙述</td>
+</tr>
+<tr>
+<td>论文模型与现行 Task bundle</td>
+<td>论文的 Light/Full/Heavy（约 <code>1.00M / 1.98M / 4.02M</code> 参数）不能直接等同于现在的 Hand Landmarker checkpoint；尤其不能只凭参数量猜测 Heavy 的逐层结构</td>
+</tr>
+<tr>
+<td>自建 Tiny MLP</td>
+<td>它是 <code>63 → 32 → 6</code>、<code>2,246</code> 个可训练参数、约 <code>53 KB</code> 的分类头；它不是 MediaPipe 的主视觉模型</td>
+</tr>
+<tr>
+<td>端到端开销</td>
+<td>分类头很小，不代表系统很小；已有记录中官方视觉前端约 <code>7.82 MB</code>，仍是资源讨论时更不能被忽略的主体</td>
+</tr>
+<tr>
+<td><code>NO_GESTURE</code></td>
+<td>小规模、单人训练的 <code>NO_GESTURE</code> 不等于“已经覆盖所有未知手型”；<code>OK</code>、<code>ROCK</code> 等困难负样本仍不能被包装成已解决的泛化能力</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>同日还定位到 HaGRIDv2 演示环境中的一个具体阻塞：旧 <code>.venv</code> 指向已经不存在的 Python <code>3.12.8</code>，会导致 <code>Unable to create process</code>。处理策略是保留旧环境、另建隔离的 <code>.venv-demo</code> 并重装验证依赖。这里必须如实写成“定位问题并形成解决方案”；本周记录没有证明演示环境已经在现场完整跑通。</p>
+<p>这件小事也提醒我：<strong>科研复现的可信度不只来自模型本身，还来自环境、版本、数据、指标和措辞是否对齐。</strong></p>
+<h2 id="从手势识别项目，到连续第一人称视觉的系统问题"><a href="#从手势识别项目，到连续第一人称视觉的系统问题" class="headerlink" title="从手势识别项目，到连续第一人称视觉的系统问题"></a>从手势识别项目，到连续第一人称视觉的系统问题</h2><p>9 月 4 日，我把长期方向从“继续做一个手势识别项目”进一步收束为：</p>
+<blockquote>
+<p><strong>面向异构、资源受限设备的内存、延迟与能耗高效连续第一人称视觉推理。</strong></p>
+</blockquote>
+<p>MediaPipe、HaGRIDv2、EgoGesture 不再只是几个可以堆在简历上的项目，而是可用于验证这个问题的场景。我的关注点不再是“能不能再加几个手势类别”，而是：连续视频中，计算、张量、缓存和能耗究竟卡在什么地方；怎样在固定资源预算下减少 P95 延迟，且不把精度和稳定性换掉。</p>
+<p>这个重构也迫使我把硬件边界说清楚。A55 侧通常有 Linux、DRAM 与缓存；M33 或其他 MCU 侧面对的是 SRAM、Flash 与更紧的实时资源约束。MCU 内存优化方法不能被生硬地搬到 A55 上。先前设想的 <code>A55 × 2 + M33</code> 平台未必能拿到，后续也可能转向 STM32N6570-DK 一类设备；在硬件尚未确认、板子尚未到手之前，这只能是研究计划，不能写成部署结论。</p>
+<p>若转向带 M55、NPU、摄像头流水线和外部存储的 MCU 平台，异构边界也会变成摄像头/ISP、DMA、M55、NPU、外部 PSRAM 与 CPU fallback，而不只是 “A55 和 M33 如何通信”。这使我对“系统”二字有了更实在的理解：并不是多画几个模块，而是明确每一块数据在哪里生成、移动、存活和被计算。</p>
+<p>同时，我开始把“尽快发一篇 CCF-A”带来的焦虑转成一个可执行但不自欺的双线策略：一条快线是进入课题组的成熟项目，承担可以被验证与署名的模块，经历真实投稿周期；另一条主线是长期保留连续视觉资源优化的研究身份。它们都要接受问题、证据、基线、指标和淘汰门槛的约束，而不是仅靠“热门”或“感觉会有效”。</p>
+<h2 id="MCUNetV2：先看见峰值激活内存，再决定是否值得优化"><a href="#MCUNetV2：先看见峰值激活内存，再决定是否值得优化" class="headerlink" title="MCUNetV2：先看见峰值激活内存，再决定是否值得优化"></a>MCUNetV2：先看见峰值激活内存，再决定是否值得优化</h2><p>本周只完成了 <strong>MCUNetV2</strong> 的标题、摘要、Introduction 和 Figure 1/2 首读，进度约 <code>18%</code>；之后因为需要先补齐学长指定的 TFLM 论文而暂停。它不是一篇已经读完或已经复现的论文。</p>
+<p>但前面的部分已经足以改变我的提问方式。MCUNetV2 的重点不只是“造一个更小的 CNN”，而是联合改变网络结构与执行调度，以降低 MCU 上的<strong>峰值 activation memory</strong>。论文的示例中，<code>4 × 4</code> patch 调度能把峰值从约 <code>1372 kB</code> 降到约 <code>172 kB</code>，约为 <code>8×</code>。这很有冲击力，但不是免费的午餐：patch 的感受野和边界重叠会造成重复计算，可能把节省的 SRAM 换成更高的延迟与能耗。</p>
+<p>这又把我带回一个不能绕过的问题：</p>
+<blockquote>
+<p>在目标 MCU/NPU 上，前段 activation 是否真的主导峰值 SRAM？如果是，patch 节省的内存是否值得其增加的重复计算、P95 延迟和每帧能耗？</p>
+</blockquote>
+<p>论文提出 receptive-field redistribution 与 NAS 的联合搜索，是为了减少前段 patch 重叠带来的开销；Figure 2 还提醒我，检测任务通常比分类更依赖空间分辨率，因此“直接把输入缩小”不是无代价内存方案。但这些都只是论文给出的设计思路，<strong>不是我已经在目标设备上发现的瓶颈</strong>。在没有 profile 之前，“内存优化”只能是候选方向，不能被预设为结论。</p>
+<h2 id="量化不是运行时：模型文件变小，也不等于设备变快"><a href="#量化不是运行时：模型文件变小，也不等于设备变快" class="headerlink" title="量化不是运行时：模型文件变小，也不等于设备变快"></a>量化不是运行时：模型文件变小，也不等于设备变快</h2><p>9 月 4 日还精读并审稿式检查了量化综述 <em>A Target-Centric Survey of Quantization-Aware Training</em>。它不是提出新量化算法的原创实验论文，而是一篇按 weights、activations、<code>W+A</code>、KV cache 与 gradients 整理的 taxonomy 和 reporting checklist。对我而言，它的价值不在于再记一个 INT8/INT4 名词，而在于把“量化有效”拆成必须分别验证的层次。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>不能偷换成的结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fake quantization</td>
+<td>训练中模拟低比特，并不自动等于目标设备执行真实整数 kernel</td>
+</tr>
+<tr>
+<td>模型文件更小</td>
+<td>权重存储减少，不自动等于 activation、workspace 或系统峰值内存下降</td>
+</tr>
+<tr>
+<td>算子支持</td>
+<td>模型能导出或能运行，不自动等于每个算子都映射到高效 kernel / NPU</td>
+</tr>
+<tr>
+<td>单层加速</td>
+<td>局部 kernel 变快，不自动等于端到端延迟和能耗显著改善</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这也让我把量化与内存调度明确地区分开：<strong>量化减少每个元素的 bit 数；内存调度减少同一时刻存活的数据量。</strong> 二者可以结合，但不是同一道题。普通 CNN 的 FP32/INT8 对比本身已经很难构成新意；更值得追问的是 simulation-to-deployment gap：整数 kernel、编译器、CPU fallback、逐层误差、数据搬运、真实延迟和能耗是否真的与离线模拟一致。</p>
+<p>从这个角度看，TFLM、MCUNetV2、StreamNet、vMCU 与 FlexNN 可以构成一条技术阅读链：先理解解释器和静态内存规划，再理解 patch 如何压低峰值 activation、流式 buffer 如何减少重复计算、算子与内存规划如何协同，以及动态可用内存下如何适应。它不是一张已经实现的路线图，而是我下一阶段判断“问题究竟落在哪一层”的坐标系。</p>
+<p>EgoGesture 也因此被重新定位为可用于连续、第一人称动态手势的 benchmark，而不等于真实智能眼镜数据；更不应把重型 C3D/LSTM 直接搬到资源受限目标上，再把“能跑”误认为“适合部署”。</p>
+<h2 id="先回到-TFLM：模型如何真正落进-MCU-内存"><a href="#先回到-TFLM：模型如何真正落进-MCU-内存" class="headerlink" title="先回到 TFLM：模型如何真正落进 MCU 内存"></a>先回到 TFLM：模型如何真正落进 MCU 内存</h2><p>我被学长问到 Figure 4 时，最初无法解释 A/B/C/D 为什么形状不同。这个卡点迫使我从头精读 <strong>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</strong>，而这次阅读最终把模型、解释器、算子、kernel、静态内存和调用顺序串了起来。</p>
+<h3 id="Figure-4-不是网络-shape-图，而是内存生命周期图"><a href="#Figure-4-不是网络-shape-图，而是内存生命周期图" class="headerlink" title="Figure 4 不是网络 shape 图，而是内存生命周期图"></a>Figure 4 不是网络 shape 图，而是内存生命周期图</h3><p>我现在能给出一个不含糊的解释：</p>
+<ul>
+<li>横轴是 tensor arena 中的内存字节地址偏移；</li>
+<li>纵轴是张量从产生到最后一次使用的生命周期；</li>
+<li>图块的“宽度”编码的是字节数，不是原始 tensor shape；</li>
+<li>两个张量只有在生命周期不重叠时，才可能复用同一段内存。</li>
+</ul>
+<p>例如，INT8 的 <code>[1, 32, 32, 16]</code> 有 <code>16,384</code> 个元素，也就是 <code>16,384 bytes</code>；INT16 的 <code>[1, 16, 16, 32]</code> 虽然只有 <code>8,192</code> 个元素，却同样占 <code>16,384 bytes</code>。它们在这类图里可以一样宽，尽管 shape 和元素数都不同。</p>
+<p>这里还有一个容易被忽略的限制：如果算子读取 B、同时写入 C，B 与 C 在该算子执行期间通常仍然同时存活。只有算子明确支持安全的 in-place operation 时，输入和输出才可复用地址。普通卷积中一个输入常被多个重叠窗口继续读取，因此不能随意原地写；ReLU 这类逐元素操作则更可能原地执行。</p>
+<h3 id="我重新建立的运行时执行链"><a href="#我重新建立的运行时执行链" class="headerlink" title="我重新建立的运行时执行链"></a>我重新建立的运行时执行链</h3><p>本周把 TFLM 的流程整理成了下面这条链：</p>
+<p>[<br>\text{训练模型}<br>\rightarrow \text{TFLite Converter}<br>\rightarrow \text{FlatBuffer }(.tflite)<br>\rightarrow \text{Model Loader}<br>\rightarrow \text{OpResolver}<br>\rightarrow \text{Memory Planner}<br>\rightarrow \text{Tensor Arena}<br>\rightarrow \text{Interpreter.Invoke()}<br>\rightarrow \text{Kernel}.<br>]</p>
+<p>其中最重要的职责划分是：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>它决定什么</th>
+<th>本周纠正的误解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model / <code>.tflite</code></td>
+<td>图结构、张量元数据、量化参数和权重</td>
+<td><code>.tflite</code> 是 FlatBuffer，不是“已经编译好的机器码”</td>
+</tr>
+<tr>
+<td>Interpreter</td>
+<td>初始化、解析 operator registration、调用顺序与 <code>Invoke()</code></td>
+<td>Interpreter 不会把模型“转译成另一份程序”；它是在适当时机分派已编译的 kernel</td>
+</tr>
+<tr>
+<td>Kernel</td>
+<td>在具体硬件上怎样执行算子</td>
+<td>“模型能运行”不等于每个算子都已有 CMSIS-NN、DSP 或 NPU 优化实现</td>
+</tr>
+<tr>
+<td>Memory Planner / Tensor Arena</td>
+<td>张量、scratch 与持久对象何时、何处占用内存</td>
+<td>total tensor sizes 不等于实际需要的 peak memory</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>TFLM 的静态内存策略也不再只是一个口号。arena 的 head 承载非持久的 activation、输入输出与可复用 scratch；tail 保存 Interpreter 生命周期内的持久元数据、算子状态、变量张量等。完成初始化后，推理路径不应不断 <code>malloc/new</code>，这样才能避免长期运行中的内存碎片和不可预测失败。动态 shape 会破坏预先固定好的生命周期布局，这也是论文版本不支持它的一个根本原因。</p>
+<h3 id="多模型、内存总和与峰值：我曾经算错的地方"><a href="#多模型、内存总和与峰值：我曾经算错的地方" class="headerlink" title="多模型、内存总和与峰值：我曾经算错的地方"></a>多模型、内存总和与峰值：我曾经算错的地方</h3><p>一个特别值得记录的修正，是多模型内存不能粗暴地把每个模型的临时空间全部相加。若模型顺序执行，合理的结构是：</p>
+<p>[<br>M_{\text{sequential}}<br>= \sum_i P_i + \max_i T_i,<br>]</p>
+<p>其中 (P_i) 是每个模型必须常驻的 persistent memory，(T_i) 是运行时临时空间。两个模型顺序运行的示例应约为 <code>2.7 MB</code>，而不是起初随手估出的 <code>2.2 MB</code>；如果真要并发，则临时空间会同时存在，示例会接近 <code>4.2 MB</code>，而且需要独立的 Interpreter、独立持久状态及互不覆盖的运行区。</p>
+<p>因此，“多模型”不等于“多线程”，TFLM 本身也不创建线程或负责 RTOS 调度；外部系统当然可以有多线程，但同一个 Interpreter/arena 被同时 <code>Invoke()</code> 通常不安全。用 mutex 只能把并发退化为轮流执行，并不会让同一块内存魔法般容纳两份中间张量。</p>
+<h3 id="从表格数字回到-Amdahl-定律"><a href="#从表格数字回到-Amdahl-定律" class="headerlink" title="从表格数字回到 Amdahl 定律"></a>从表格数字回到 Amdahl 定律</h3><p>这篇论文的实验部分也给了我一次很好的数字核验训练。Cortex-M4 上的 VWW 从 <code>18,990.8K cycles</code> 降到 <code>4,857.7K cycles</code>，实际计算约为 <code>3.91×</code>，应当说“接近 4×”，而不是照抄成“超过 4×”。Hotword 从 <code>45.1K</code> 到 <code>36.4K cycles</code>，约为 <code>1.24×</code>，说明只加速部分 kernel 时，整体加速会受未优化部分限制。</p>
+<p>我还做了一个<strong>纯假设性的 profiling 练习</strong>，不是实测结果：如果 NPU 算子为 <code>8 ms</code>、CPU fallback 为 <code>12 ms</code>、数据搬运为 <code>6 ms</code>、解释器调度为 <code>1 ms</code>，总延迟为 <code>27 ms</code>。即使把调度从 <code>1 ms</code> 降到 <code>0.2 ms</code>，总延迟也只是 <code>26.2 ms</code>：</p>
+<p>[<br>\text{speedup} = \frac{27}{26.2} \approx 1.03\times.<br>]</p>
+<p>这让我意识到“把解释器做快一点”也许几乎不会改变用户感知的延迟；真正该优先查的，可能是 CPU fallback、数据复制、格式重排或未被映射到 NPU 的算子。这里的价值不是那个 <code>1.03×</code>，而是以后不能凭直觉宣称某一层优化“很有用”。</p>
+<p>同理，TFLM 中 kernel 加速后，解释器开销占比可能会上升，并不代表解释器突然变慢，只是原本近似固定的调度成本占到了更小的总时间份额。论文的 Table 3 中，VWW 的 persistent memory 是 <code>26.50 kB</code>、nonpersistent memory 是 <code>55.30 kB</code>、总计 <code>81.79 kB</code>；把正文提到的 <code>26.5 kB</code> 当成“总内存”，就是又一次把局部数字脱离语境。</p>
+<h2 id="数学不是课后插曲，而是系统研究的表达工具"><a href="#数学不是课后插曲，而是系统研究的表达工具" class="headerlink" title="数学不是课后插曲，而是系统研究的表达工具"></a>数学不是课后插曲，而是系统研究的表达工具</h2><p>本周的数学学习本来来自课程，但我只保留其中支撑科研表达的部分。它给我的不是更多题目答案，而是一次检验：我能不能把一个结果从“像是对的”说成“为什么一定对”。</p>
+<h3 id="正定性与-Ridge：修复一个错误直觉"><a href="#正定性与-Ridge：修复一个错误直觉" class="headerlink" title="正定性与 Ridge：修复一个错误直觉"></a>正定性与 Ridge：修复一个错误直觉</h3><p>之前我有过“奇异矩阵加满秩矩阵就一定满秩”的不严谨直觉。Ridge 的可逆性不靠这个口号，而是靠正则项在每个方向上给出严格正量：</p>
+<p>[<br>z^T(XX^T+n\lambda I)z<br>= \lVert X^Tz \rVert^2 + n\lambda \lVert z \rVert^2 &gt; 0<br>\qquad (z \ne 0,\; \lambda&gt;0).<br>]</p>
+<p>这也让我更明确 <code>n&lt;d</code> 时 (XX^T) 为什么可能秩不足、为什么正则项能修复可逆性：不是“加了 (I) 就好”，而是它提升了所有方向上的二次型下界。</p>
+<h3 id="SVM：把-“-w-”-从模糊符号变回几何量"><a href="#SVM：把-“-w-”-从模糊符号变回几何量" class="headerlink" title="SVM：把 “(|w|)” 从模糊符号变回几何量"></a>SVM：把 “(|w|)” 从模糊符号变回几何量</h3><p>SVM 的卡点集中在 decision boundary、margin boundary、support vector 与 ​(|w|)​ 的关系。我最终用“地板与上下两个平面”的三维图像反复重建：</p>
+<p>[<br>H(w,b)={x:w^Tx+b=0},<br>\qquad<br>\operatorname{dist}(x,H)=\frac{|w^Tx+b|}{\lVert w\rVert_2}.<br>]</p>
+<p>(w) 是超平面的法向量，​(|w|)​ 是它自身的长度，并不是样本点到平面的距离。在 SVM 的 ​(\pm 1)​ 规范下，support vector 到决策面的单侧 margin 才是 (1/\lVert w\rVert)，两侧总宽度为 (2/\lVert w\rVert)。同时，SVM 是利用全体样本共同求一组 (w,b)，不是“每个点各有一个 (w)”。</p>
+<h3 id="神经网络：表达能力不等于训练与泛化保证"><a href="#神经网络：表达能力不等于训练与泛化保证" class="headerlink" title="神经网络：表达能力不等于训练与泛化保证"></a>神经网络：表达能力不等于训练与泛化保证</h3><p>我还通过</p>
+<p>[<br>h_\theta(x)=w^T\sigma(Ux+b)<br>]</p>
+<p>追踪了 (U,b,w) 的 shape，并重新确认：没有激活函数时，多层 affine 复合仍然只是 affine；非线性才让网络能够表达复杂函数。Universal Approximation Theorem 说明的是“存在参数可逼近”，不说明 SGD 一定能找到它、参数一定少、样本一定够、泛化一定好。</p>
+<p>用 ReLU 逼近 (x^4) 时，我一度把图像理解成阶梯，后来才区分清楚：单个 ReLU 在阈值前为零，多个 ReLU 叠加后形成的是连续分段线性折线；同层单元在各 breakpoint 累加的是斜率改变量 (s<em>k-s</em>{k-1})。误差界</p>
+<p>[<br>\text{error}\le \frac{6}{M^2}<br>]</p>
+<p>说明 (M=25) 时误差可小于 <code>0.01</code>，但这依然是一个构造性逼近结果，不是深度网络训练成功的承诺。</p>
+<p>这些推导最终也回到一个很朴素的原则：论文中的 matrix、shape、记号和导数约定都必须回到原始语境核验，不能用“我以前通常这么记”替代证明或原始材料。</p>
+<h2 id="本周建立的论文阅读方法：让-AI-覆盖，让研究者判断"><a href="#本周建立的论文阅读方法：让-AI-覆盖，让研究者判断" class="headerlink" title="本周建立的论文阅读方法：让 AI 覆盖，让研究者判断"></a>本周建立的论文阅读方法：让 AI 覆盖，让研究者判断</h2><p>我读了 Keshav 的三遍阅读法，但没有把它当作机械流程，而是把它改成适合嵌入式 AI 的研究复现版：</p>
+<ol>
+<li><strong>机器全量扫描：</strong> 覆盖论文版本、附录、代码、图表、引用与关键声明，避免漏掉限制条件。</li>
+<li><strong>人工精读决策节点：</strong> 重点看输入输出、状态如何变化、资源花在哪里、主张靠什么证据支撑、反例可能从哪里出现。</li>
+<li><strong>可执行验证：</strong> 把理解落到 shape、内存生命周期、model graph、kernel、profiling 和未来的板级实验上。</li>
+</ol>
+<p>这里我希望长期坚持的一条边界是：<strong>AI 适合做覆盖、核验和攻击；独立判断、异常观察与实验取舍必须留给研究者。</strong></p>
+<p>这也改变了我看“创新点”的方式。我不再直接要求 AI 生成一个模块然后套进论文，而是先写下自己的预测、最可能失败点和迁移假设；再把论文、代码、硬件、实验设计、相邻领域和反方审稿意见拆成不同证据链。对于看似热门的动态 patch、量化或多目标优化，必须偿还一笔“创新债务”：</p>
+<ul>
+<li>异常现象是什么？</li>
+<li>背后的机制是什么？</li>
+<li>能提出什么可测量的预测？</li>
+<li>什么实验结果会直接推翻它？</li>
+</ul>
+<p>真正难以复制的研究问题，往往不是“论文方法 + 一个新模块”，而是论文解释、代码行为和设备测量发生冲突的地方。</p>
+<h2 id="卡点、修正与仍未完成的事"><a href="#卡点、修正与仍未完成的事" class="headerlink" title="卡点、修正与仍未完成的事"></a>卡点、修正与仍未完成的事</h2><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>卡点</th>
+<th>本周的处理</th>
+<th>仍然不能越界的结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HaGRIDv2 演示环境失效</td>
+<td>定位旧虚拟环境指向丢失的 Python 3.12.8，设计隔离 demo 环境的修复路径</td>
+<td>不能写成演示已完整跑通</td>
+</tr>
+<tr>
+<td>把注意力图当因果解释</td>
+<td>通过 <code>gaze × contrast</code> 对照，把直觉改成可测量假设</td>
+<td>attention 落在虹膜区域不等于模型因果地依赖虹膜</td>
+</tr>
+<tr>
+<td>想当然地外推论文数字</td>
+<td>重新对齐 <code>1.84°</code> 的校准条件、<code>5 ms</code> 的测量范围、<code>0.05°</code> 的统计边界</td>
+<td>不能把局部模型结果说成完整系统或实际设备结论</td>
+</tr>
+<tr>
+<td>把张量大小相加当内存需求</td>
+<td>用 lifetime 与 arena offset 理解 peak allocation 和复用</td>
+<td>没有真实 profile 时，不能说目标设备“已经被 activation 卡死”</td>
+</tr>
+<tr>
+<td>想先做一个看起来新颖的内存方法</td>
+<td>先读 MCUNetV2，再回到 TFLM 补 runtime、kernel 和 planner 基础</td>
+<td>没有硬件与 baseline 数据时，不能宣称已经有方法贡献</td>
+</tr>
+<tr>
+<td>论文焦虑</td>
+<td>改为“成熟项目的可验证贡献 + 长期主线”的双线策略</td>
+<td>还没有实际投稿进展或可署名成果</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这张表不是为了强调自己“踩了很多坑”，而是为了留下每一次修正发生在哪里。研究训练最怕的不是暂时不知道，而是不知道自己不知道什么，却已经把它写成结论。</p>
+<h2 id="下周应当从哪里开始"><a href="#下周应当从哪里开始" class="headerlink" title="下周应当从哪里开始"></a>下周应当从哪里开始</h2><p>这一周的阅读和推导应该由真实测量收尾。接下来最合理的顺序不是直接做动态 patch，也不是先做一次 FP32/INT8/INT4 对比，而是：</p>
+<ol>
+<li>确认最终可用的硬件、内存层级和工具链；STM32N6570-DK 仍只是可能的方向，不能预设为既有平台。</li>
+<li>建立 baseline profiler，至少记录每层 activation/scratch/persistent memory、NPU 与 CPU fallback 时间、CPU—NPU 之间的数据复制与同步、SRAM/PSRAM 数据位置、摄像头双缓冲与 DMA、任务栈、P50/P95 延迟、帧率和能耗。</li>
+<li>用这些数据回答 MCUNetV2 进入问题：前层 activation 是否真的主导峰值内存？如果不是，kernel workspace、skip buffer、DMA 或 runtime allocator 可能才是值得研究的入口。</li>
+<li>回到 MCUNetV2 的后续章节，继续建立“调度怎样改变 tensor 生命周期”的模型—系统连接；若发现连续视频的时间冗余是关键，再把 patch/streaming 的重复计算作为可检验假设，而不是既定方案。</li>
+</ol>
+<p>本周留下的中心句是：</p>
+<blockquote>
+<p><strong>我不再把“模型能跑”当作研究的终点，而是开始追问：它在什么条件下有效，证据是否足够，部署时真正花掉的资源又是什么。</strong></p>
+</blockquote>
+<p>只要这个问题没有被真实测量回答，下一步就还没有开始；但至少现在，我知道该如何把它问清楚了。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io">祝炩烟</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io/posts/f0b5a411.html">https://cand1elight.github.io/posts/f0b5a411.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://cand1elight.github.io" target="_blank">祝炩烟's Blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%A7%91%E7%A0%94%E5%91%A8%E6%8A%A5/">科研周报</a><a class="post-meta__tags" href="/tags/Edge-AI/">Edge AI</a><a class="post-meta__tags" href="/tags/TinyML/">TinyML</a><a class="post-meta__tags" href="/tags/GazeShift/">GazeShift</a><a class="post-meta__tags" href="/tags/TensorFlow-Lite-Micro/">TensorFlow Lite Micro</a><a class="post-meta__tags" href="/tags/MCUNetV2/">MCUNetV2</a><a class="post-meta__tags" href="/tags/%E8%AE%BA%E6%96%87%E7%B2%BE%E8%AF%BB/">论文精读</a></div><div class="post-share"><div class="social-share" data-image="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/c2a1f08a.html" title="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2"><img class="cover" src="https://204180371.xyz/PicGo/01E0D886082DF83F6E451D93B10C1007.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-30</div><div class="info-item-2">2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2</div></div><div class="info-2"><div class="info-item-1">  记录区间：2026 年 8 月 24 日—8 月 30 日（Asia/Hong_Kong）。 这是一篇基于本周实际学习对话整理的周记。文中会明确标注“已完成”“形成理解”和“下一步计划”；没有可核实记录的日期、实验指标或练习，不用想象补齐。  这一周最重要的变化，不是完成了多少个待办，而是开始把“学习一个项目”拆成更可追踪的几层：先厘清概念和公式，再让代码在异常状态下稳定运行，最后才谈怎样把 Demo 变成能回答研究问题的实验原型。 手势识别仍然是主线：从 MediaPipe Hands 的 ROI 与追踪回路，走到闭集分类器的局限、动态摄像头脚本的一次真实报错修复，以及 HaGRIDv2 的后续实验设计。同时，线性代数和 SVM 继续承担“把直觉压回公式”的基础工作；英语口语则留下了两组能够重复调用的表达材料。 本周总览    日期 已核实的推进 记录状态     8 月 24 日 未发现可核实的学习记录 不补写   8 月 25 日 重整学习方法；IELTS Speaking Part 1 家乡主题练习；训练安排讨论 已完成/形成方法   8 月 26...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">祝炩烟</div><div class="author-info-description">记录日常与学习过程的点点滴滴，分享知识与思考。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">38</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">73</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Cand1eLight"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon faa-parent animated-hover" href="https://github.com/Cand1eLight" target="_blank" title="Github"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-gitHub"></use></svg></a><a class="social-icon faa-parent animated-hover" href="https://space.bilibili.com/3546557553052060" target="_blank" title="BiliBili"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili"></use></svg></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">Welcome to my blog!
+记录一些日常和学习的记录!
+Ciallo～(∠・ω< )⌒☆
+</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E5%91%A8%E7%9A%84%E7%A0%94%E7%A9%B6%E8%BD%A8%E8%BF%B9"><span class="toc-number">1.</span> <span class="toc-text">一周的研究轨迹</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#GazeShift%EF%BC%9A%E4%BB%8E%E7%9C%8B%E6%87%82%E7%BB%93%E6%9E%9C%EF%BC%8C%E5%88%B0%E6%A3%80%E6%9F%A5%E5%AE%83%E5%88%B0%E5%BA%95%E8%AF%81%E6%98%8E%E4%BA%86%E4%BB%80%E4%B9%88"><span class="toc-number">2.</span> <span class="toc-text">GazeShift：从看懂结果，到检查它到底证明了什么</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%CE%B3%E3%80%81%E6%A0%A1%E5%87%86%E4%B8%8E%E6%B3%A8%E6%84%8F%E5%8A%9B%EF%BC%9A%E5%87%A0%E4%B8%AA%E4%B8%80%E5%BC%80%E5%A7%8B%E5%AE%B9%E6%98%93%E8%AF%B4%E9%94%99%E7%9A%84%E7%BB%86%E8%8A%82"><span class="toc-number">2.1.</span> <span class="toc-text">γ、校准与注意力：几个一开始容易说错的细节</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B7%E6%9C%AC%E9%85%8D%E5%AF%B9%E4%B8%8D%E5%8F%AA%E6%98%AF-data-loader-%E7%9A%84%E7%BB%86%E8%8A%82"><span class="toc-number">2.2.</span> <span class="toc-text">样本配对不只是 data loader 的细节</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%8E%E8%AE%BA%E6%96%87%E7%9A%84%E5%81%87%E8%AE%BE%EF%BC%8C%E8%B5%B0%E5%90%91-AR-MR-%E6%9D%A1%E4%BB%B6%E4%B8%8B%E5%8F%AF%E8%83%BD%E5%A4%B1%E6%95%88%E7%9A%84%E4%BD%8D%E7%BD%AE"><span class="toc-number">2.3.</span> <span class="toc-text">从论文的假设，走向 AR&#x2F;MR 条件下可能失效的位置</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#9-%E6%9C%88-1-%E6%97%A5%E7%9A%84%E7%B3%BB%E7%BB%9F%E6%A0%B8%E9%AA%8C%EF%BC%9A%E6%A8%A1%E5%9E%8B%E5%B0%8F%EF%BC%8C%E4%B8%8D%E7%AD%89%E4%BA%8E%E6%95%B4%E4%B8%AA%E7%B3%BB%E7%BB%9F%E5%B0%8F"><span class="toc-number">3.</span> <span class="toc-text">9 月 1 日的系统核验：模型小，不等于整个系统小</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%8E%E6%89%8B%E5%8A%BF%E8%AF%86%E5%88%AB%E9%A1%B9%E7%9B%AE%EF%BC%8C%E5%88%B0%E8%BF%9E%E7%BB%AD%E7%AC%AC%E4%B8%80%E4%BA%BA%E7%A7%B0%E8%A7%86%E8%A7%89%E7%9A%84%E7%B3%BB%E7%BB%9F%E9%97%AE%E9%A2%98"><span class="toc-number">4.</span> <span class="toc-text">从手势识别项目，到连续第一人称视觉的系统问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#MCUNetV2%EF%BC%9A%E5%85%88%E7%9C%8B%E8%A7%81%E5%B3%B0%E5%80%BC%E6%BF%80%E6%B4%BB%E5%86%85%E5%AD%98%EF%BC%8C%E5%86%8D%E5%86%B3%E5%AE%9A%E6%98%AF%E5%90%A6%E5%80%BC%E5%BE%97%E4%BC%98%E5%8C%96"><span class="toc-number">5.</span> <span class="toc-text">MCUNetV2：先看见峰值激活内存，再决定是否值得优化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E4%B8%8D%E6%98%AF%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%9A%E6%A8%A1%E5%9E%8B%E6%96%87%E4%BB%B6%E5%8F%98%E5%B0%8F%EF%BC%8C%E4%B9%9F%E4%B8%8D%E7%AD%89%E4%BA%8E%E8%AE%BE%E5%A4%87%E5%8F%98%E5%BF%AB"><span class="toc-number">6.</span> <span class="toc-text">量化不是运行时：模型文件变小，也不等于设备变快</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%88%E5%9B%9E%E5%88%B0-TFLM%EF%BC%9A%E6%A8%A1%E5%9E%8B%E5%A6%82%E4%BD%95%E7%9C%9F%E6%AD%A3%E8%90%BD%E8%BF%9B-MCU-%E5%86%85%E5%AD%98"><span class="toc-number">7.</span> <span class="toc-text">先回到 TFLM：模型如何真正落进 MCU 内存</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Figure-4-%E4%B8%8D%E6%98%AF%E7%BD%91%E7%BB%9C-shape-%E5%9B%BE%EF%BC%8C%E8%80%8C%E6%98%AF%E5%86%85%E5%AD%98%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%E5%9B%BE"><span class="toc-number">7.1.</span> <span class="toc-text">Figure 4 不是网络 shape 图，而是内存生命周期图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%88%91%E9%87%8D%E6%96%B0%E5%BB%BA%E7%AB%8B%E7%9A%84%E8%BF%90%E8%A1%8C%E6%97%B6%E6%89%A7%E8%A1%8C%E9%93%BE"><span class="toc-number">7.2.</span> <span class="toc-text">我重新建立的运行时执行链</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%A4%9A%E6%A8%A1%E5%9E%8B%E3%80%81%E5%86%85%E5%AD%98%E6%80%BB%E5%92%8C%E4%B8%8E%E5%B3%B0%E5%80%BC%EF%BC%9A%E6%88%91%E6%9B%BE%E7%BB%8F%E7%AE%97%E9%94%99%E7%9A%84%E5%9C%B0%E6%96%B9"><span class="toc-number">7.3.</span> <span class="toc-text">多模型、内存总和与峰值：我曾经算错的地方</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%8E%E8%A1%A8%E6%A0%BC%E6%95%B0%E5%AD%97%E5%9B%9E%E5%88%B0-Amdahl-%E5%AE%9A%E5%BE%8B"><span class="toc-number">7.4.</span> <span class="toc-text">从表格数字回到 Amdahl 定律</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%B0%E5%AD%A6%E4%B8%8D%E6%98%AF%E8%AF%BE%E5%90%8E%E6%8F%92%E6%9B%B2%EF%BC%8C%E8%80%8C%E6%98%AF%E7%B3%BB%E7%BB%9F%E7%A0%94%E7%A9%B6%E7%9A%84%E8%A1%A8%E8%BE%BE%E5%B7%A5%E5%85%B7"><span class="toc-number">8.</span> <span class="toc-text">数学不是课后插曲，而是系统研究的表达工具</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%AD%A3%E5%AE%9A%E6%80%A7%E4%B8%8E-Ridge%EF%BC%9A%E4%BF%AE%E5%A4%8D%E4%B8%80%E4%B8%AA%E9%94%99%E8%AF%AF%E7%9B%B4%E8%A7%89"><span class="toc-number">8.1.</span> <span class="toc-text">正定性与 Ridge：修复一个错误直觉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#SVM%EF%BC%9A%E6%8A%8A-%E2%80%9C-w-%E2%80%9D-%E4%BB%8E%E6%A8%A1%E7%B3%8A%E7%AC%A6%E5%8F%B7%E5%8F%98%E5%9B%9E%E5%87%A0%E4%BD%95%E9%87%8F"><span class="toc-number">8.2.</span> <span class="toc-text">SVM：把 “(|w|)” 从模糊符号变回几何量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%EF%BC%9A%E8%A1%A8%E8%BE%BE%E8%83%BD%E5%8A%9B%E4%B8%8D%E7%AD%89%E4%BA%8E%E8%AE%AD%E7%BB%83%E4%B8%8E%E6%B3%9B%E5%8C%96%E4%BF%9D%E8%AF%81"><span class="toc-number">8.3.</span> <span class="toc-text">神经网络：表达能力不等于训练与泛化保证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E5%91%A8%E5%BB%BA%E7%AB%8B%E7%9A%84%E8%AE%BA%E6%96%87%E9%98%85%E8%AF%BB%E6%96%B9%E6%B3%95%EF%BC%9A%E8%AE%A9-AI-%E8%A6%86%E7%9B%96%EF%BC%8C%E8%AE%A9%E7%A0%94%E7%A9%B6%E8%80%85%E5%88%A4%E6%96%AD"><span class="toc-number">9.</span> <span class="toc-text">本周建立的论文阅读方法：让 AI 覆盖，让研究者判断</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8D%A1%E7%82%B9%E3%80%81%E4%BF%AE%E6%AD%A3%E4%B8%8E%E4%BB%8D%E6%9C%AA%E5%AE%8C%E6%88%90%E7%9A%84%E4%BA%8B"><span class="toc-number">10.</span> <span class="toc-text">卡点、修正与仍未完成的事</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8B%E5%91%A8%E5%BA%94%E5%BD%93%E4%BB%8E%E5%93%AA%E9%87%8C%E5%BC%80%E5%A7%8B"><span class="toc-number">11.</span> <span class="toc-text">下周应当从哪里开始</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/posts/f0b5a411.html" title="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena"><img src="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena"/></a><div class="content"><a class="title" href="/posts/f0b5a411.html" title="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena">2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena</a><time datetime="2026-09-06T16:00:00.000Z" title="发表于 2026-09-07 00:00:00">2026-09-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/c2a1f08a.html" title="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2"><img src="https://204180371.xyz/PicGo/01E0D886082DF83F6E451D93B10C1007.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2"/></a><div class="content"><a class="title" href="/posts/c2a1f08a.html" title="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2">2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2</a><time datetime="2026-08-30T15:30:00.000Z" title="发表于 2026-08-30 23:30:00">2026-08-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/fad4b066.html" title="D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录"><img src="https://204180371.xyz/PicGo/ECDEAE041ACF47975C6748591199040E.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录"/></a><div class="content"><a class="title" href="/posts/fad4b066.html" title="D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录">D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录</a><time datetime="2026-08-22T12:02:00.000Z" title="发表于 2026-08-22 20:02:00">2026-08-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/f3982ca2.html" title="D2L 学习日志：从线性回归到 DenseNet 的阶段总结"><img src="https://204180371.xyz/PicGo/D4D4836C479BD3EF3E9CCB1DB9D991FB.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="D2L 学习日志：从线性回归到 DenseNet 的阶段总结"/></a><div class="content"><a class="title" href="/posts/f3982ca2.html" title="D2L 学习日志：从线性回归到 DenseNet 的阶段总结">D2L 学习日志：从线性回归到 DenseNet 的阶段总结</a><time datetime="2026-08-19T16:00:00.000Z" title="发表于 2026-08-20 00:00:00">2026-08-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/ad97ea8.html" title="D2L 学习日志：ResNet 与 DenseNet"><img src="https://204180371.xyz/PicGo/B1BD0060CC872926127F7738A949910A.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="D2L 学习日志：ResNet 与 DenseNet"/></a><div class="content"><a class="title" href="/posts/ad97ea8.html" title="D2L 学习日志：ResNet 与 DenseNet">D2L 学习日志：ResNet 与 DenseNet</a><time datetime="2026-08-18T16:00:00.000Z" title="发表于 2026-08-19 00:00:00">2026-08-19</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2025 - 2026 By 祝炩烟</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><div class="js-pjax"><script>(() => {
+  const loadMathjax = () => {
+    if (!window.MathJax) {
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          tags: 'none',
+        },
+        chtml: {
+          scale: 1.1
+        },
+        options: {
+          enableMenu: true,
+          renderActions: {
+            findScript: [10, doc => {
+              for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
+                const display = !!node.type.match(/; *mode=display/)
+                const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display)
+                const text = document.createTextNode('')
+                node.parentNode.replaceChild(text, node)
+                math.start = {node: text, delim: '', n: 0}
+                math.end = {node: text, delim: '', n: 0}
+                doc.math.push(math)
+              }
+            }, '']
+          }
+        }
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/mathjax/es5/tex-mml-chtml.min.js'
+      script.id = 'MathJax-script'
+      script.async = true
+      document.head.appendChild(script)
+    } else {
+      MathJax.startup.document.state(0)
+      MathJax.texReset()
+      MathJax.typesetPromise()
+    }
+  }
+
+  btf.addGlobalFn('encrypt', loadMathjax, 'mathjax')
+  window.pjax ? loadMathjax() : window.addEventListener('load', loadMathjax)
+})()</script></div><div class="aplayer no-destroy" data-id="8152976493" data-server="netease" data-type="playlist"
+data-order="list" data-fixed="true" data-preload="auto" data-autoplay="false" data-mutex="true"></div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/metingjs/dist/Meting.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索………" type="text"/></div></div><hr/><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></div><!-- hexo injector body_end start --><script data-pjax>
+  function butterfly_clock_anzhiyu_injector_config(){
+    var parent_div_git = document.getElementsByClassName('sticky_layout')[0];
+    var item_html = '<div class="card-widget card-clock"><div class="card-glass"><div class="card-background"><div class="card-content"><div id="hexo_electric_clock"><img class="entered loading" id="card-clock-loading" src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/loading.gif" style="height: 120px; width: 100%;" data-ll-status="loading"/></div></div></div></div></div>';
+    console.log('已挂载butterfly_clock_anzhiyu')
+    if(parent_div_git) {
+      parent_div_git.insertAdjacentHTML("afterbegin",item_html)
+    }
+  }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var qweather_key = 'f7394b7c1a5446feb791aedeecba4ecc';
+  var gaud_map_key = '66a3f75fe3a288fca105be2131c0ea6e';
+  var baidu_ak_key = 'undefined';
+  var flag = 0;
+  var clock_rectangle = '112.6534116,27.96920845';
+  var clock_default_rectangle_enable = 'false';
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  </script><script src="https://widget.qweather.net/simple/static/js/he-simple-common.js?v=2.0"></script><script data-pjax src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.js"></script><script data-pjax>
+  function butterfly_footer_beautify_injector_config(){
+    var parent_div_git = document.getElementById('footer-wrap');
+    var item_html = '<div id="workboard"></div><p id="ghbdages"><a class="github-badge" target="_blank" href="https://hexo.io/" style="margin-inline:5px" data-title="博客框架为Hexo_v5.4.0" title=""><img src="https://img.shields.io/badge/Frame-Hexo-blue?style=flat&amp;logo=hexo" alt=""/></a><a class="github-badge" target="_blank" href="https://butterfly.js.org/" style="margin-inline:5px" data-title="主题版本Butterfly_v4.2.2" title=""><img src="https://img.shields.io/badge/Theme-Butterfly-6513df?style=flat&amp;logo=bitdefender" alt=""/></a><a class="github-badge" target="_blank" href="https://www.jsdelivr.com/" style="margin-inline:5px" data-title="本站使用JsDelivr为静态资源提供CDN加速" title=""><img src="https://img.shields.io/badge/CDN-jsDelivr-orange?style=flat&amp;logo=jsDelivr" alt=""/></a><a class="github-badge" target="_blank" href="https://github.com/" style="margin-inline:5px" data-title="本站项目由Github托管" title=""><img src="https://img.shields.io/badge/Source-Github-d021d6?style=flat&amp;logo=GitHub" alt=""/></a><a class="github-badge" target="_blank" href="http://creativecommons.org/licenses/by-nc-sa/4.0/" style="margin-inline:5px" data-title="本站采用知识共享署名-非商业性使用-相同方式共享4.0国际许可协议进行许可" title=""><img src="https://img.shields.io/badge/Copyright-BY--NC--SA%204.0-d42328?style=flat&amp;logo=Claris" alt=""/></a></p>';
+    console.log('已挂载butterfly_footer_beautify')
+    parent_div_git.insertAdjacentHTML("beforeend",item_html)
+    }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var flag = 0;
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_footer_beautify_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_footer_beautify_injector_config();
+  }
+  </script><script async src="/js/runtime/runtime.js"></script><div class="js-pjax"><script async="async">var arr = document.getElementsByClassName('recent-post-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '30');
+    arr[i].setAttribute('data-wow-iteration', '1');
+  }</script><script async="async">var arr = document.getElementsByClassName('card-widget');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('article-sort-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__slideInRight');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script></div><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow.min.js"></script><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow_init.js"></script><script async src="/js/ali_font.js"></script><!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/koharu.model.json"},"display":{"position":"left","width":150,"height":850},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/"});</script></body></html>

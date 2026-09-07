@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">2026 年 9 月第 1 周科研推进图</title>
+  <desc id="desc">从论文证据审查、数学推导到 TensorFlow Lite Micro 内存运行时理解的研究推进时间线。</desc>
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Noto+Sans+SC:wght@400;500;600;700&amp;display=swap');
+      text { font-family: 'JetBrains Mono', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+      .title { fill: #f8fafc; font-size: 25px; font-weight: 700; letter-spacing: .3px; }
+      .subtitle { fill: #94a3b8; font-size: 12px; font-weight: 400; }
+      .axis-label { fill: #64748b; font-size: 10px; font-weight: 600; letter-spacing: .9px; }
+      .date { fill: #cbd5e1; font-size: 10px; font-weight: 700; letter-spacing: .8px; }
+      .card-title { fill: #f8fafc; font-size: 13px; font-weight: 700; }
+      .card-line { fill: #cbd5e1; font-size: 10px; font-weight: 500; }
+      .card-note { fill: #94a3b8; font-size: 9px; font-weight: 400; }
+      .footer-title { fill: #fbbf24; font-size: 11px; font-weight: 700; }
+      .footer-note { fill: #cbd5e1; font-size: 10px; font-weight: 500; }
+      .legend { fill: #94a3b8; font-size: 9px; font-weight: 500; }
+    </style>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.55"/>
+    </pattern>
+    <linearGradient id="titleGlow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset=".52" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M 0 0 L 10 4 L 0 8 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="#0f172a"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+  <rect x="30" y="30" width="1220" height="700" rx="18" fill="none" stroke="#1e293b" stroke-width="1"/>
+
+  <text x="62" y="76" class="title">科研推进地图 · 2026.09.01 — 09.07</text>
+  <rect x="62" y="94" width="540" height="3" rx="2" fill="url(#titleGlow)"/>
+  <text x="62" y="122" class="subtitle">从“读到一个结论”走向“核验它的证据、边界与可测量的系统问题”</text>
+  <text x="1217" y="76" class="axis-label" text-anchor="end">RESEARCH-ONLY · EVIDENCE-BOUND</text>
+
+  <text x="96" y="338" class="axis-label">WEEKLY RESEARCH TRACE</text>
+  <line x1="96" y1="370" x2="1175" y2="370" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <line x1="160" y1="275" x2="160" y2="348" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="62" y="140" width="196" height="135" rx="10" fill="#0f172a"/>
+  <rect x="62" y="140" width="196" height="135" rx="10" fill="rgba(8,51,68,0.46)" stroke="#22d3ee" stroke-width="1.5"/>
+  <text x="80" y="165" class="date">09 / 01</text>
+  <text x="80" y="193" class="card-title">证据与边界校准</text>
+  <text x="80" y="218" class="card-line">GazeShift 校准协议</text>
+  <text x="80" y="237" class="card-line">MediaPipe / HaGRIDv2 核验</text>
+  <text x="80" y="258" class="card-note">模型、任务、数据不再混写</text>
+  <circle cx="160" cy="370" r="11" fill="#0f172a" stroke="#22d3ee" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="160" cy="370" r="4" fill="#22d3ee"/>
+
+  <line x1="380" y1="392" x2="380" y2="465" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="282" y="465" width="196" height="135" rx="10" fill="#0f172a"/>
+  <rect x="282" y="465" width="196" height="135" rx="10" fill="rgba(76,29,149,0.38)" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="300" y="490" class="date">09 / 02</text>
+  <text x="300" y="518" class="card-title">数学表达补强</text>
+  <text x="300" y="543" class="card-line">正定性、SVM 几何、shape</text>
+  <text x="300" y="562" class="card-line">ReLU 与逼近误差</text>
+  <text x="300" y="583" class="card-note">把公式变为可复述的论证</text>
+  <circle cx="380" cy="370" r="11" fill="#0f172a" stroke="#a78bfa" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="380" cy="370" r="4" fill="#a78bfa"/>
+
+  <line x1="600" y1="275" x2="600" y2="348" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="502" y="140" width="196" height="135" rx="10" fill="#0f172a"/>
+  <rect x="502" y="140" width="196" height="135" rx="10" fill="rgba(8,51,68,0.46)" stroke="#22d3ee" stroke-width="1.5"/>
+  <text x="520" y="165" class="date">09 / 03</text>
+  <text x="520" y="193" class="card-title">GazeShift 全文精读</text>
+  <text x="520" y="218" class="card-line">配对策略定义所学表征</text>
+  <text x="520" y="237" class="card-line">从注意力图回到可证伪实验</text>
+  <text x="520" y="258" class="card-note">不把支持性证据当作因果证明</text>
+  <circle cx="600" cy="370" r="11" fill="#0f172a" stroke="#22d3ee" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="600" cy="370" r="4" fill="#22d3ee"/>
+
+  <line x1="820" y1="392" x2="820" y2="465" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="722" y="465" width="196" height="135" rx="10" fill="#0f172a"/>
+  <rect x="722" y="465" width="196" height="135" rx="10" fill="rgba(6,78,59,0.42)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="740" y="490" class="date">09 / 04</text>
+  <text x="740" y="518" class="card-title">研究主线重构</text>
+  <text x="740" y="543" class="card-line">连续第一人称视觉推理</text>
+  <text x="740" y="562" class="card-line">内存—延迟—能耗协同</text>
+  <text x="740" y="583" class="card-note">MCUNetV2 首读后先补 runtime</text>
+  <circle cx="820" cy="370" r="11" fill="#0f172a" stroke="#34d399" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="820" cy="370" r="4" fill="#34d399"/>
+
+  <line x1="1040" y1="275" x2="1040" y2="348" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="942" y="140" width="236" height="135" rx="10" fill="#0f172a"/>
+  <rect x="942" y="140" width="236" height="135" rx="10" fill="rgba(6,78,59,0.42)" stroke="#34d399" stroke-width="1.5"/>
+  <text x="960" y="165" class="date">09 / 04 — 09 / 06</text>
+  <text x="960" y="193" class="card-title">TFLM 与 Tensor Arena</text>
+  <text x="960" y="218" class="card-line">生命周期、静态规划、kernel</text>
+  <text x="960" y="237" class="card-line">峰值内存，不是张量总和</text>
+  <text x="960" y="258" class="card-note">用 Amdahl 约束“优化有效”的直觉</text>
+  <circle cx="1040" cy="370" r="11" fill="#0f172a" stroke="#34d399" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="1040" cy="370" r="4" fill="#34d399"/>
+
+  <rect x="62" y="638" width="1116" height="60" rx="10" fill="#0f172a"/>
+  <rect x="62" y="638" width="1116" height="60" rx="10" fill="rgba(120,53,15,0.23)" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="7 4"/>
+  <text x="86" y="664" class="footer-title">证据边界</text>
+  <text x="205" y="664" class="footer-note">本周没有板端实测、新模型训练或真实逐层 profile。</text>
+  <text x="86" y="685" class="footer-note">下一步：确认硬件与工具链 → 建立 baseline profiler → 用真实瓶颈提出可证伪假设。</text>
+
+  <circle cx="937" cy="714" r="5" fill="#22d3ee"/><text x="949" y="718" class="legend">论文 / 证据</text>
+  <circle cx="1040" cy="714" r="5" fill="#a78bfa"/><text x="1052" y="718" class="legend">数学 / 推导</text>
+  <circle cx="1141" cy="714" r="5" fill="#34d399"/><text x="1153" y="718" class="legend">系统 / 方法</text>
+</svg>
