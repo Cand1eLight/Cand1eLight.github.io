@@ -1,0 +1,549 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light"><meta name="description" content="沿着模型转换、算子注册、Tensor Arena、静态内存规划与执行调度，梳理 TFLM 如何在资源受限的 MCU 上完成一次推理，并结合论文图表辨析性能结论与适用边界。"><title>从 .tflite 到一次完整推理：我如何读懂 TensorFlow Lite Micro | 文献阅读报告</title><link rel="stylesheet" href="/literature-reports/assets/literature-reports.css"><script>window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body class="literature-portal"><div class="literature-pattern" aria-hidden="true"></div><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>从 .tflite 到一次完整推理：我如何读懂 TensorFlow Lite Micro</h1><p class="report-summary">沿着模型转换、算子注册、Tensor Arena、静态内存规划与执行调度，梳理 TFLM 如何在资源受限的 MCU 上完成一次推理，并结合论文图表辨析性能结论与适用边界。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-21T04:00:00.000Z">2026-09-21</time></span><span><strong>论文</strong><em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em></span><span><strong>领域</strong><em>TinyML · TensorFlow Lite Micro · MCU 推理</em></span></div></header><article class="literature-article"><p><img src="/literature-reports/tflm/tflm-system-overview.png" alt="TensorFlow Lite Micro 系统流程概览"></p>
+<p>我第一次读 <em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em> 时，几乎还没有学过 MCU 推理框架。那时我大概知道模型要放进开发板，却说不清 <code>.tflite</code> 里面到底是什么、Interpreter 为什么叫解释器、算子如何找到 kernel，更说不清 Figure 4 里的 A、B、C、D 为什么形状不同。</p>
+<p>后来学长追问 Figure 4，我没把坐标轴、内存大小和生命周期讲明白，这篇论文也就被打回来重读了。现在重新回看，这次卡住反而挺有价值：它逼着我把“模型格式—算子注册—内存规划—推理调度—平台优化”整条链真正连了起来。</p>
+<p>我现在对 TFLM 的一句话理解是：</p>
+<blockquote>
+<p>TFLM 用一个足够小、足够可移植的解释器读取 <code>.tflite</code> 模型，在初始化阶段完成算子绑定和固定内存规划，在每次 <code>Invoke()</code> 时按拓扑顺序调用已经编译好的 kernel，从而让同一套上层框架运行在缺少操作系统、动态内存和统一硬件架构的 MCU 上。</p>
+</blockquote>
+<p>这篇论文真正想证明的也不是“TFLM 能跑神经网络”这么简单。它要证明的是：在 TinyML 中，大部分时间花在卷积、全连接等长时间运行的 kernel 上，所以解释器的调度成本可以被这些计算摊薄。这样就能用很小的运行时开销，换来模型更新、跨平台移植和厂商逐算子优化的灵活性。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921142501978.png" alt="TensorFlowlite简易流程图"></p>
+<h2 id="我是怎么把这篇论文重新读通的"><a href="#我是怎么把这篇论文重新读通的" class="headerlink" title="我是怎么把这篇论文重新读通的"></a>我是怎么把这篇论文重新读通的</h2><p>这次没有机械地从第一页逐句翻译到最后一页。我把 <em>How to Read a Paper</em> 的分层阅读思路和 AI 辅助结合起来：</p>
+<ol>
+<li>先快速浏览摘要、章节、Figure 和 Table，弄清论文在解决什么问题、结构怎么展开，再列出真正影响理解的疑点。</li>
+<li>我自己重点攻克这些节点：<code>.tflite</code>、Model Loader、OpResolver、Tensor Arena、Figure 4、<code>Invoke()</code>、多模型、多线程和性能表格。</li>
+<li>让 AI 帮我定位原文、复算数字、提出反例；不同任务分开检查，最后仍回到论文图表和原句核验。我先自己解释，再区分“概念正确、措辞不精确、实质错误”，最后把整条推理路径不看答案地串起来。</li>
+</ol>
+<p>我不让几个角色对同一个“创新点”自由发挥后再按多数投票，而是把证据任务分开：原图和原文核对事实，独立计算核对数字，实现细节和反例检查结论边界。角色数量本身不能保证突破，能不能把每个判断追溯到不同而可靠的证据，才是关键。</p>
+<p>这个方法节省的是机械搜索和整理时间，没有省掉判断。让几个 AI 都回答“这篇论文有什么创新”，很容易得到相似的常见答案；让它们分别找证据、算数字、找反例，最后再对照原文，才更容易暴露分歧。比如 Table 2 的总周期和计算周期可以很快找到，但解释器开销为什么上升、正文所说的“超过 4 倍”是否和表格一致，还是要把数字亲自算一遍。</p>
+<h2 id="为什么-MCU-需要一套专门的推理框架"><a href="#为什么-MCU-需要一套专门的推理框架" class="headerlink" title="为什么 MCU 需要一套专门的推理框架"></a>为什么 MCU 需要一套专门的推理框架</h2><p>论文先总结了嵌入式机器学习面临的四类根本困难。</p>
+<h3 id="缺少通用软件能力"><a href="#缺少通用软件能力" class="headerlink" title="缺少通用软件能力"></a>缺少通用软件能力</h3><p>很多 MCU 没有完整操作系统、虚拟内存、文件系统和动态内存管理。有些设备甚至缺少硬件浮点。桌面软件里习以为常的能力，在这里都不能被框架默认依赖。</p>
+<h3 id="硬件和工具链高度碎片化"><a href="#硬件和工具链高度碎片化" class="headerlink" title="硬件和工具链高度碎片化"></a>硬件和工具链高度碎片化</h3><p>嵌入式市场没有统一到一两个主流架构。不同厂商拥有不同 ISA、DSP 扩展、IDE、编译器和私有工具链。若每块芯片都维护一套一次性的推理框架，模型迁移和优化成本会迅速失控。</p>
+<h3 id="SRAM、Flash、功耗与代码体积都很紧"><a href="#SRAM、Flash、功耗与代码体积都很紧" class="headerlink" title="SRAM、Flash、功耗与代码体积都很紧"></a>SRAM、Flash、功耗与代码体积都很紧</h3><p>TinyML 不只限制模型参数。运行时激活、临时工作区、解释器和算子代码都要争夺有限资源。即使应用只需要几个固定模型，固件中链接了从未调用的算子，也是在浪费 Flash。</p>
+<h3 id="深度学习本身还在快速变化"><a href="#深度学习本身还在快速变化" class="headerlink" title="深度学习本身还在快速变化"></a>深度学习本身还在快速变化</h3><p>训练框架不断增加新算子和新网络结构。论文写作时，TensorFlow 支持 1400 多个操作，而 TensorFlow Lite 只支持约 130 个。部署框架既不能无限扩张，也不能每出现一个新模型就从头手工改写。</p>
+<p>这些问题共同决定了 TFLM 的方向：<strong>框架只负责模型计算，把平台相关能力留给应用和硬件厂商。</strong></p>
+<p>论文列出的实际应用包括关键词唤醒、预测性维护、声音异常检测、视觉目标检测和人体活动识别。它们的共同点是传感器数据连续到来、设备需要长期低功耗运行，重复推理成本远比偶尔一次的初始化更重要。</p>
+<h2 id="四条设计原则"><a href="#四条设计原则" class="headerlink" title="四条设计原则"></a>四条设计原则</h2><p>论文的设计不是从模块列表开始，而是先给出了四条原则。</p>
+<h3 id="1-把功能范围压到最小"><a href="#1-把功能范围压到最小" class="headerlink" title="1. 把功能范围压到最小"></a>1. 把功能范围压到最小</h3><p>TFLM 假设模型、输入数组和输出数组已经位于内存中。它负责神经网络计算，不负责从文件系统加载模型，也不负责摄像头、麦克风、网络和线程调度。</p>
+<p>这个边界让我理解了“框架”和“产品功能”的区别：TFLM 可以执行一个手势识别网络，但采集图像、触发推理、显示结果、处理中断，仍由应用或平台代码负责。</p>
+<h3 id="2-让硬件厂商能够逐-kernel-优化"><a href="#2-让硬件厂商能够逐-kernel-优化" class="headerlink" title="2. 让硬件厂商能够逐 kernel 优化"></a>2. 让硬件厂商能够逐 kernel 优化</h3><p>卷积、全连接、激活、池化和 softmax 等算子占据绝大部分计算时间。TFLM 为算子定义稳定接口，厂商可以保留解释器和模型格式，只替换某些 kernel。例如 Arm 可以接入 CMSIS-NN，而不需要重新设计一整套模型编译器。</p>
+<h3 id="3-复用-TensorFlow-Lite-的训练与转换生态"><a href="#3-复用-TensorFlow-Lite-的训练与转换生态" class="headerlink" title="3. 复用 TensorFlow Lite 的训练与转换生态"></a>3. 复用 TensorFlow Lite 的训练与转换生态</h3><p>模型转换比想象中复杂。转换器要处理训练图到推理图的变化、量化、常量折叠、数据类型和参数范围，还要判断目标运行时是否支持每个算子。</p>
+<p>论文在 §3.3 确实提到这件事：导出时可以把 BatchNorm 这类常量表达式折叠进固定值，并移除 Dropout 这类只在训练时有用的操作。它没有在文中推导 BatchNorm 的折叠公式，下面这组公式是我为理解“折叠进卷积”补的标准推导。</p>
+<p>BatchNorm（批归一化）会先用均值和方差把某一层的特征值缩放到较稳定的范围，再用可学习的缩放系数 $\gamma$ 和偏移量 $\beta$ 调整回来。训练时它使用当前 batch 的统计量并更新运行统计量；推理时不再有一批训练样本可供统计，而是使用训练阶段保存的固定均值和方差。</p>
+<p>假设卷积输出为 $z=Wx+b$，后面接推理阶段的 BatchNorm：</p>
+<script type="math/tex; mode=display">
+y=\gamma\frac{z-\mu}{\sqrt{\sigma^2+\epsilon}}+\beta</script><p>因为推理时使用的均值、方差已经固定，令 $\alpha=\gamma/\sqrt{\sigma^2+\epsilon}$，就可以改写为一次新的卷积：</p>
+<script type="math/tex; mode=display">
+W'=\alpha W,\qquad b'=\alpha(b-\mu)+\beta</script><p>实际卷积通常按输出通道分别计算这些参数。这样推理图就不必再单独执行 BatchNorm。Dropout 在训练时随机屏蔽部分激活以正则化模型；推理时关闭随机屏蔽，转换器通常会把它移除或变成恒等操作。TFLM 直接复用 TensorFlow Lite Converter 和参考 kernel，避免重新搭建整条转换链。</p>
+<h3 id="4-用“Bag-of-Files”适应不同构建系统"><a href="#4-用“Bag-of-Files”适应不同构建系统" class="headerlink" title="4. 用“Bag of Files”适应不同构建系统"></a>4. 用“Bag of Files”适应不同构建系统</h3><p>论文希望开发者拿到一组源文件和头文件后，能够直接拖进自己的 IDE 或工具链编译。TFLM 使用一个 makefile 维护主源文件列表，再从模板生成不同平台的工程文件。</p>
+<p>这个方案提高了可移植性，也留下了工程债务：论文当时的项目生成过程混合了 makefile、脚本和 Python，维护与调试并不轻松。作者在论文里直接承认了这一点。</p>
+<h2 id="tflite-是怎么来的"><a href="#tflite-是怎么来的" class="headerlink" title=".tflite 是怎么来的"></a><code>.tflite</code> 是怎么来的</h2><p>模型先在 TensorFlow/Keras 等训练环境中产生 training graph。TensorFlow Lite Exporter 将它转换成适合推理的 inference graph，并生成 <code>.tflite</code> FlatBuffer。</p>
+<p><code>.tflite</code> 不是 Arm 机器码，也不是提前生成的一段卷积程序。它主要保存：</p>
+<ul>
+<li>按拓扑顺序排列的算子列表；</li>
+<li>输入、输出和中间张量的元数据；</li>
+<li>张量形状、数据类型和量化参数；</li>
+<li>算子参数和版本；</li>
+<li>固定权重与常量 buffer。</li>
+</ul>
+<p>这里最容易混淆的是权重和中间张量。</p>
+<p>权重在训练结束后已经确定，换一张输入图像也不会改变，所以必须保存在模型中，通常位于 Flash/ROM。中间激活由当前输入计算产生，每次推理都不同，<code>.tflite</code> 只保存它的形状、类型等描述，真实数值在运行时写入 SRAM 的 Tensor Arena。</p>
+<p>我这里说的 activation，是每一层算出来、传给下一层的中间数值张量；它不是专指 ReLU 这样的 activation function。比如卷积层输出的一整块特征图，就是一个 activation tensor。</p>
+<p>因此，中间张量不保存在 <code>.tflite</code> 中的首要原因不是“文件太大”，而是模型导出时根本不知道未来输入会产生什么数值。</p>
+<blockquote>
+<p><img src="https://204180371.xyz/PicGo/20260921140554139.png" alt="`.tflite` 是模型数据，不是目标芯片机器码。"></p>
+</blockquote>
+<h2 id="Model-Loader-为什么不需要把模型全部解包到-SRAM"><a href="#Model-Loader-为什么不需要把模型全部解包到-SRAM" class="headerlink" title="Model Loader 为什么不需要把模型全部解包到 SRAM"></a>Model Loader 为什么不需要把模型全部解包到 SRAM</h2><p>TFLM 使用 FlatBuffer 序列化模型。它的访问代码是 header-only，论文称二进制 footprint 通常低于 2 kB。FlatBuffer 的关键优势是数据可以直接按既定布局读取，不必先解包成另一份完整对象。</p>
+<p>在缺少文件系统的 MCU 上，<code>.tflite</code> 文件还可以转换成 C/C++ 字节数组，编译进固件。Model Loader 更接近一个指向模型字节的有类型视图：它通过偏移找到 subgraph、operator、tensor 和 buffer，而不是把整个模型复制进 SRAM。需要更新模型时，如果模型确实放在独立文件或独立 Flash 区域，就可以只替换那部分；如果它被编译进固件，能否单独更新还取决于 bootloader、Flash 分区和发布流程，未必不用重刷固件。</p>
+<p>这也解释了权重为什么可以留在 Flash：kernel 需要时根据模型中的引用读取它们。具体能否直接从 Flash 高效访问、是否需要分块搬运，取决于芯片和 kernel 实现。</p>
+<p>FlatBuffer 也有代价。TFLM 需要 C++11 编译器；可移植的序列化参数还要在运行时转换成 kernel 使用的结构。每个算子会多几行参数解析代码，但换来了统一模型格式和快速访问。</p>
+<h2 id="OpResolver：模型里的名字怎样找到真正的代码"><a href="#OpResolver：模型里的名字怎样找到真正的代码" class="headerlink" title="OpResolver：模型里的名字怎样找到真正的代码"></a>OpResolver：模型里的名字怎样找到真正的代码</h2><p><code>.tflite</code> 只说明“这里需要 Conv2D”，真正执行卷积的 C/C++ kernel 必须已经编译进固件。OpResolver 负责把模型中的 opcode、版本或 custom operator 名称映射到对应的算子注册信息和函数入口。</p>
+<p>这里可以把两个词分开记：operator 是模型节点声明的计算类型（例如 Conv2D），kernel 是实现这项计算的函数代码。这里的 kernel 不是操作系统内核。模型决定“做什么计算”，平台优化 kernel 决定“怎样在这块芯片上做得更合适”。</p>
+<p>我现在把它理解成一张受控的函数索引：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">模型节点：Conv2D</span><br><span class="line">        ↓</span><br><span class="line">OpResolver 查询注册信息</span><br><span class="line">        ↓</span><br><span class="line">找到 Conv2D 的 init / prepare / invoke</span><br><span class="line">        ↓</span><br><span class="line">调用 reference kernel 或平台优化 kernel</span><br></pre></td></tr></table></figure>
+<p>OpResolver 还决定哪些算子最终链接进程序。模型只需要 Conv2D、ReLU 和 FullyConnected，就没有必要把一百多个无关算子全部塞进 Flash。</p>
+<p>如果模型包含 Conv2D，而程序没有注册 Conv2D，就无法把这个节点绑定到可调用的实现。按常见 TFLM 使用流程，这类问题会在模型准备或执行到该节点之前暴露；论文说明了 resolver 的映射职责，但没有规定某个具体版本必须在哪个 API 调用、用什么错误码报告。关键是：没有 kernel 可调用时，卷积计算本身还没有开始，不会正常算到一半才发现实现不存在。</p>
+<h2 id="Interpreter-到底“解释”了什么"><a href="#Interpreter-到底“解释”了什么" class="headerlink" title="Interpreter 到底“解释”了什么"></a>Interpreter 到底“解释”了什么</h2><p>我以前把 Interpreter 理解成“把 <code>.tflite</code> 转译成代码”，这个说法不准确。TFLM 的执行代码早已编译完成，Interpreter 不会现场生成 C++ 或机器码。</p>
+<p>它解释的是模型数据：</p>
+<ul>
+<li>当前节点是什么算子；</li>
+<li>节点需要哪些输入、输出和参数；</li>
+<li>张量位于 Tensor Arena 的什么偏移；</li>
+<li>该调用哪个已经注册的 kernel。</li>
+</ul>
+<p>整个运行过程可以分成初始化与推理两大阶段。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">.tflite 字节数组</span><br><span class="line">      ↓</span><br><span class="line">Model Loader 建立模型视图</span><br><span class="line">      ↓</span><br><span class="line">OpResolver 绑定算子实现</span><br><span class="line">      ↓</span><br><span class="line">init / prepare 收集持久状态与临时内存需求</span><br><span class="line">      ↓</span><br><span class="line">Memory Planner 计算张量偏移</span><br><span class="line">      ↓</span><br><span class="line">初始化完成，Tensor Arena 固定</span><br><span class="line">      ↓</span><br><span class="line">应用写入输入并调用 Interpreter::Invoke()</span><br><span class="line">      ↓</span><br><span class="line">Interpreter 按拓扑顺序调用各算子的 invoke()</span><br><span class="line">      ↓</span><br><span class="line">kernel 计算并写入输出张量</span><br><span class="line">      ↓</span><br><span class="line">应用读取最终输出</span><br></pre></td></tr></table></figure>
+<p>把论文描述的初始化阶段映射到常见实现术语，可以这样理解。论文讲的是阶段职责，不要求所有版本都用完全相同的 C++ 函数名：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>主要任务</th>
+<th>典型调用频率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init()</code></td>
+<td>建立算子的持久状态</td>
+<td>通常初始化时一次</td>
+</tr>
+<tr>
+<td><code>prepare()</code></td>
+<td>检查形状和参数，报告算子需要的 scratch 等内存</td>
+<td>通常初始化时一次</td>
+</tr>
+<tr>
+<td><code>invoke()</code></td>
+<td>真正执行该算子的一次计算</td>
+<td>每次模型推理都会调用</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>我一开始还把 <code>Invoke()</code> 想成“激活某个功能”或“激活 kernel 代码”。这里的 invoke 更接近“调用/执行”：它不是打开某个开关，也不是现场生成 kernel。</p>
+<p>这里还有两层 Invoke：</p>
+<ul>
+<li><code>Interpreter::Invoke()</code> 执行整个模型一次；</li>
+<li>某个 kernel 的 <code>invoke(context, node)</code> 只执行当前算子一次。</li>
+</ul>
+<p>应用把传感器数据写进输入张量后，调用一次 <code>Interpreter::Invoke()</code>。解释器循环访问已经按拓扑排序的 operator list，通过内存规划得到的 offset 找到每个节点的输入、输出和参数，再调用对应 kernel。最后一个节点完成后，控制权返回应用，应用再读取输出。</p>
+<p>论文把这次调用设计成阻塞式：整个模型执行结束后函数才返回。MCU 可以用中断处理更紧急的任务，外部 RTOS 也可以从某个任务中调用它。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921140018353.png" alt="对应时序图"></p>
+<blockquote>
+<p><strong>配图位置 4：</strong>紧接 Figure 2 放一张自制时序图，显示 Application 写输入、调用 <code>Interpreter::Invoke()</code>、逐节点调用 kernel、返回输出。这个图能把“两层 Invoke”讲清楚。</p>
+</blockquote>
+<h2 id="为什么一定要在运行前把内存安排好"><a href="#为什么一定要在运行前把内存安排好" class="headerlink" title="为什么一定要在运行前把内存安排好"></a>为什么一定要在运行前把内存安排好</h2><p>很多 MCU 没有可靠的通用 heap。即使可以调用 <code>malloc()</code>，长时间反复分配和释放也会引入碎片与不可预测失败。TFLM 要求应用提供一块连续的固定大小内存，也就是 Tensor Arena。</p>
+<p>初始化时，Interpreter 根据模型和各算子的需求从 Arena 分配全部运行内存。正常的模型调用阶段不再通过 TFLM 的机制申请新空间。若某个算子执行到一半才临时申请 1 MB，它会破坏两个核心保证：峰值内存在运行前可知，以及长时间运行不受 heap 碎片影响。</p>
+<p>正确做法是在初始化/算子准备阶段把所需空间报告给框架，让分配器在第一次推理前完成预留。这里要区分“scratch 里的数值是临时的”和“scratch 的存储地址何时分配”：论文明确说，推理过程中需要的临时数据位于 persistent-stack allocation section（持久栈分配区）。也就是说，数值可能每次调用都会变，但对应的 Arena 空间在初始化时就已经安排好，不能把它简单等同于 Figure 4 中可按张量生命周期复用的所有 activation。</p>
+<h2 id="Tensor-Arena-的-Head、Tail-和临时区域"><a href="#Tensor-Arena-的-Head、Tail-和临时区域" class="headerlink" title="Tensor Arena 的 Head、Tail 和临时区域"></a>Tensor Arena 的 Head、Tail 和临时区域</h2><p>论文 Figure 3 把 Arena 画成从低地址到高地址的一段连续空间。</p>
+<p>这里的 “stack” 说的是 Tensor Arena 两端的分配方式，不是线程的函数调用栈。</p>
+<ul>
+<li>Head 从低地址向高地址增长，承载函数期/评估期的分配；中间 activation 是后文重点复用的对象；</li>
+<li>Tail 从高地址向低地址增长，承载 Interpreter 生命周期内需要保留的对象，例如模型元数据、张量描述和算子状态。论文还特别指出，推理时所需的临时数据也放在这个持久栈分配区；“scratch”描述的是用途临时，不代表它的 Arena 地址一定属于 Head；</li>
+<li>两者之间的空间可在模型准备阶段用于临时规划数据，初始化完成后重新利用。</li>
+</ul>
+<p>当 Head 与 Tail 相遇或交叉时，说明 Arena 容量不足，框架报告应用级错误。中间的 temporary allocation area 是模型准备/内存规划时短暂使用的空间，准备完成后可以回收。这个结构让我意识到，“分好一块 SRAM”只是开始，真正重要的是每类数据要活多久、在哪个阶段需要。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921140711915.png" alt="双栈内存设计"></p>
+<h2 id="Figure-4：我真正被打回来的地方"><a href="#Figure-4：我真正被打回来的地方" class="headerlink" title="Figure 4：我真正被打回来的地方"></a>Figure 4：我真正被打回来的地方</h2><p>Figure 4 把中间张量的内存规划画成矩形装箱问题。这里必须严格按原图读轴：</p>
+<ul>
+<li><strong>纵轴是 Time</strong>，向下经过 Operator #1 到 Operator #8；</li>
+<li><strong>横轴是 Memory Size</strong>，向右表示占用更多字节；</li>
+<li>矩形的横向宽度表示 allocation size；</li>
+<li>矩形的纵向起点表示张量何时产生；</li>
+<li>矩形的纵向终点表示最后一次使用何时结束；</li>
+<li>矩形的纵向高度因此表示 lifetime；</li>
+<li>矩形的横向位置表示它被安排在 Arena 的哪段 offset。</li>
+</ul>
+<p>这意味着 A、B、C、D 是 Figure 4 中不同的中间内存分配对象，通常对应中间张量，不是四个进程或四个算子。它们形状不同，是因为大小和生命周期可以同时不同。</p>
+<p>我第一次看图时，看到 A 的矩形纵向更高，就直觉地把“看起来更长”理解成“占内存更大”，没有先确认坐标轴。论文原图标得很清楚：<strong>横轴是 Memory Size，纵轴是 Time；横向宽度才是内存大小，纵向高度才是存活时间</strong>。如果已知几个张量都是 16,384 bytes，那么它们在图中的横向宽度应该相同；谁跨过更多 operator 行，谁活得更久。A、B、C、D 是不同 allocation 的示意，不是四个线程、进程或算子。</p>
+<p>Naive 布局为不同 allocation 依次保留互不复用的横向地址区间，整体内存接近所有宽度之和。Bin packing 会把生命周期不重叠的矩形移动到相同或部分重叠的横向 offset。例如 A 结束后，D 才开始存活，那么 D 可以复用 A 曾经占用的地址。</p>
+<p>Memory Planner 先收集 Figure 4 这类中间 buffer allocation 的大小和生命周期，再按大小从大到小排序，将它放进第一个足够大的地址空隙；若没有空隙，就放在当前末尾。这是 first-fit decreasing 的近似策略。这里说的是可按生命周期复用的中间张量区域，不要和上一节的 scratch 混为一谈。</p>
+<p>对于任意两个张量 $i$ 和 $j$，若它们复用存在交集的地址区间，就必须满足生命周期不重叠：</p>
+<script type="math/tex; mode=display">
+[t_i^{start},t_i^{end}] \cap [t_j^{start},t_j^{end}] = \varnothing</script><p>这里的等号边界要结合执行语义判断：如果算子在同一步既读取旧输入又写新输出，两者在该算子执行期间仍然同时有效，不能只因为图上端点碰在一起就直接复用。</p>
+<p>因此，判断 SRAM 需求时不能把整张模型图里所有 activation 的字节数直接相加。一个更贴近 Figure 4 的逻辑量是：</p>
+<script type="math/tex; mode=display">
+M_{live}(t)=\sum_{i:\,t_i^{start}\leq t\leq t_i^{end}} size_i,\qquad M_{peak}=\max_t M_{live}(t)</script><p>这个逻辑峰值也是 Arena 空间需求的下界：任意一个时刻同时活着的字节数，都必须能放得下。</p>
+<p>我当时把“全模型所有中间张量大小加起来是 6 MB”直接和 4.2 MB SRAM 比较，然后说“总和更大也可以部署”，这个判断没有依据。总和既不能直接证明放得下，也不能直接证明放不下；关键是规划后同时存活的峰值和 Arena 里其他分配。若需要同时容纳的 activation 峰值本身就是 6 MB，而可用 SRAM 只有 4.2 MB，就不能按原样部署。</p>
+<p>这是某一时刻同时存活的中间张量容量峰值，不是任何实现下都等于最终 Tensor Arena 大小的公式；真实 Arena 还要容纳 persistent allocation、scratch、对齐和其他框架对象，也受具体布局影响。举例说，“全模型中间张量大小加起来是 6 MB”并不能单独证明 4.2 MB SRAM 一定放不下，因为不同时存活的张量可能复用地址。相反，如果内存规划后确实需要 6 MB 的同时存活区，而可供它使用的 SRAM 只有 4.2 MB，就放不下。运行时 activation 需要反复读写，不能像固定权重那样直接当成只读 ROM 数据；把它放到外部存储或 Flash 还需要显式的数据搬运、分块执行和相应硬件支持，TFLM 不会自动替模型完成这些事。单张量太大时，才需要继续看 patch/streaming 等改变执行方式的方法。</p>
+<p>完美装箱对任意模型很难，first-fit decreasing 不保证全局最优，但能以较小规划成本得到合理结果。TFLM 不支持动态 shape，因此初始化时已经知道张量尺寸和生命周期，可以完成这项规划。</p>
+<p>论文也支持 offline memory planning：在主机上提前生成张量 offset，再把布局作为 FlatBuffer metadata 写进模型。这可以减少 MCU 初始化开销，并让开发者按不同 memory bank 安排数据。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921140803570.png" alt="“纵轴 Time”“横轴 Memory Size”“宽度=字节数”“高度=生命周期”"></p>
+<p><strong>Figure 4 读图对照表</strong></p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>Figure 4 看到的部分</th>
+<th>真实含义</th>
+<th>容易出现的误读</th>
+<th>怎么判断</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>矩形的横向宽度</td>
+<td>这块 allocation 的 memory size</td>
+<td>把“看起来更高”当成“占内存更多”</td>
+<td>看横轴 Memory Size；宽度相同表示分配大小相同</td>
+</tr>
+<tr>
+<td>矩形的纵向高度</td>
+<td>这块 allocation 必须保留的时间范围</td>
+<td>把高度当成字节数</td>
+<td>看纵轴 Time 和跨过的 operator 行数</td>
+</tr>
+<tr>
+<td>矩形的横向位置</td>
+<td>在内存中的地址区间/offset</td>
+<td>以为横向位置表示执行顺序</td>
+<td>看它是否和别的矩形占用重合的地址范围</td>
+</tr>
+<tr>
+<td>A、B、C、D</td>
+<td>不同的 allocation，常对应中间张量或 buffer</td>
+<td>当成四个算子、线程或进程</td>
+<td>每个字母标的是矩形分配块，不是执行主体</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="原地计算为什么不能随便覆盖输入"><a href="#原地计算为什么不能随便覆盖输入" class="headerlink" title="原地计算为什么不能随便覆盖输入"></a>原地计算为什么不能随便覆盖输入</h2><p>原地计算是让输出复用输入所在的地址，减少额外 buffer。它成立至少需要两个条件：旧输入已经不会被其他算子继续使用，输出的大小、布局和 kernel 访问顺序允许覆盖。</p>
+<p>逐元素 ReLU 是典型例子。每个输出只依赖当前位置的输入，读出 $x_i$ 后可以把 $\max(0,x_i)$ 写回同一位置。</p>
+<p>普通 $3\times3$ 卷积不同。相邻输出会反复读取重叠的输入邻域，当前输出用过某个输入，并不代表后续输出不再需要它。若没有更细粒度的访问证明，直接覆盖会改坏未来卷积所需的数据。</p>
+<p>因此，“输出尺寸和输入尺寸一样”不足以证明可以原地计算；判断依据是最后一次读取时间与写回顺序。</p>
+<h2 id="多模型怎样共享同一块内存"><a href="#多模型怎样共享同一块内存" class="headerlink" title="多模型怎样共享同一块内存"></a>多模型怎样共享同一块内存</h2><p>TFLM 的 multitenancy 面向多个模型不同时执行的场景。每个模型仍有独立的 Model、Interpreter 和持久状态，但可以从同一个 Arena 分配。</p>
+<p>设第 $i$ 个模型需要保留的 per-model interpreter-lifetime 内存为 $P_i$，每次评估中的可复用 activation 峰值为 $N_i$。多个模型顺序执行时，稳态运行时 Arena 的近似需求为：</p>
+<script type="math/tex; mode=display">
+M_{sequential} \approx \sum_{i=1}^{m}P_i + \max_{1\leq i\leq m}N_i</script><p>这是根据论文的内存布局推导出的估算，不是论文给出的公式。原因是多个模型的模型专属 interpreter-lifetime 分配要同时留在 Arena，而同一时刻只评估一个模型时，Figure 4 这类可复用 activation 区域按最大的那份规划。模型文件和可执行代码所在的 Flash、应用栈、驱动缓冲等不在这个简式内；scratch 是否属于可复用部分，要看论文所述分配类别与具体实现，不能仅凭“scratch”这个名字就算进 $N_i$。</p>
+<p>例如模型 A 为 $P_A=3$ kB、$N_A=20$ kB，模型 B 为 $P_B=5$ kB、$N_B=12$ kB：</p>
+<script type="math/tex; mode=display">
+M_{sequential}=3+5+\max(20,12)=28\text{ kB}</script><p>若两个模型真正并发运行，简化估算中每个实例的运行区也必须同时有独立可用空间：</p>
+<script type="math/tex; mode=display">
+M_{concurrent} \approx \sum_{i=1}^{m}(P_i+N_i)+M_{extra}</script><p>这个也是博客按独立实例推导的估算，不是论文公式。$M_{extra}$ 可以包含线程栈、对齐、驱动、DMA buffer 和平台状态；具体能否共享某段只读或临时 workspace，还要看 kernel/平台是否保证并发安全。上面同一个例子在不计额外项时为：</p>
+<script type="math/tex; mode=display">
+M_{concurrent}=(3+20)+(5+12)=40\text{ kB}</script><p>模型专属状态不能笼统共享，因为算子的 <code>user_data</code>、变量张量和运行状态要在下一次调用该模型时继续存在。这里的“持久”指分配生命周期，不等于数值永远不变；推理临时数据也可能放在 persistent-stack section。顺序运行时适合复用的是论文归为 nonpersistent 的 evaluation-lifetime 区域。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921140841290.png" alt="ingle-model 与 multiple-models 对照"></p>
+<h2 id="TFLM-不管理线程，为什么仍能由多个线程运行"><a href="#TFLM-不管理线程，为什么仍能由多个线程运行" class="headerlink" title="TFLM 不管理线程，为什么仍能由多个线程运行"></a>TFLM 不管理线程，为什么仍能由多个线程运行</h2><p>论文把“框架负责线程调度”和“代码能否被多个线程安全调用”分开处理。</p>
+<p>TFLM 不创建线程、不提供任务调度，也不依赖 RTOS。但这不等于模型只能单线程运行：论文明确说，只要模型相关状态保存在对应 Interpreter 和模型 Arena 中，多个独立 Interpreter 实例可以由不同 task/thread 调用，也可以运行在不同 MCU core 上。</p>
+<p>这与 multitenancy 不同：</p>
+<ul>
+<li>multitenancy 重点是多个模型顺序执行时复用 nonpersistent/evaluation-lifetime 区域；</li>
+<li>multithreading 重点是多个独立实例能否同时执行；</li>
+<li>论文的安全性结论带有前提：模型状态不能放在 Interpreter/Arena 外部的共享状态里；同一个 Interpreter 被两个线程同时 <code>Invoke()</code> 是否安全，论文没有给出保证，工程上应按不安全处理，除非具体实现明确提供同步；</li>
+<li>kernel 内部使用 DSP、NPU、DMA 或多核并行，又属于算子实现层。</li>
+</ul>
+<p>代码可以共享，因为它是可执行内容；每个并发实例的模型状态和运行内存必须隔离或经过明确的并发安全设计。TFLM 支持的是这种组合使用方式，不负责替应用创建和管理并发任务。</p>
+<h2 id="平台优化：厂商真正替换的是什么"><a href="#平台优化：厂商真正替换的是什么" class="headerlink" title="平台优化：厂商真正替换的是什么"></a>平台优化：厂商真正替换的是什么</h2><p>TFLM 为每个算子提供参考实现，重点是正确性和可读性。面向特定硬件构建时，平台目录中的优化源文件可以覆盖参考 kernel。例如 <code>cmsis-nn</code> tag 会选择 Arm CMSIS-NN 的卷积、激活、全连接、池化和 softmax 实现。</p>
+<p>这说明 TFLM 与厂商的分工是：</p>
+<ul>
+<li>TFLM 负责模型格式、内存规划和算子调度；</li>
+<li>厂商 kernel 负责在具体指令集、DSP 或加速器上高效完成计算；</li>
+<li>应用决定何时采集输入、何时调用模型以及如何消费输出。</li>
+</ul>
+<p>厂商不是在 TFLM 里“决定模型要计算什么”。模型图已经决定计算内容，厂商主要决定这些算子在其硬件上怎样实现得更快。</p>
+<h2 id="解释式部署与编译式部署"><a href="#解释式部署与编译式部署" class="headerlink" title="解释式部署与编译式部署"></a>解释式部署与编译式部署</h2><p>TFLM 运行时读取模型数据，逐节点分派到已编译 kernel。模型结构、权重和层尺寸位于独立的 <code>.tflite</code> 数据区，更换模型时可以只替换该区域，只要运行时已经支持所需算子。</p>
+<p>编译式部署会在主机端提前分析固定模型，执行图优化、算子融合和内存规划，再生成 C/C++ 或目标代码并编译进固件。STM32Cube.AI、TinyEngine、TVM、GLOW、ELL 和 uTensor 是论文相关工作中讨论的代表。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>路线</th>
+<th>运行时行为</th>
+<th>优势</th>
+<th>成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interpreter</td>
+<td>读取模型数据并逐算子调用 kernel</td>
+<td>模型更新和跨模型共享更灵活</td>
+<td>保留少量解析与调度成本</td>
+</tr>
+<tr>
+<td>Code generation</td>
+<td>部署前把模型调用关系固化进目标程序</td>
+<td>更容易做全图融合和专用优化</td>
+<td>模型改变后通常重新生成、编译和发布固件</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>TFLM 的论点不是解释器在所有环境里都优于编译器，而是在长时间运行的 ML kernel 中，解释器分派开销相对很小。这给嵌入式推理提供了另一个合理设计点。</p>
+<h2 id="实验设置：作者到底测了什么"><a href="#实验设置：作者到底测了什么" class="headerlink" title="实验设置：作者到底测了什么"></a>实验设置：作者到底测了什么</h2><p>在论文发布时，TFLM 已经部署到多种 Arm Cortex-M 处理器、ESP32 和若干 DSP，也提供 Arduino library，并能生成 Mbed 等环境的工程。下面的实验没有覆盖所有平台，而是故意选择 MCU 与超低功耗 DSP 两个端点来观察框架开销。</p>
+<p>论文选择了两种差异很大的硬件：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>处理器</th>
+<th style="text-align:right">时钟</th>
+<th style="text-align:right">Flash</th>
+<th style="text-align:right">RAM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SparkFun Edge / Apollo3</td>
+<td>Arm Cortex-M4</td>
+<td style="text-align:right">96 MHz burst</td>
+<td style="text-align:right">1 MB</td>
+<td style="text-align:right">0.38 MB</td>
+</tr>
+<tr>
+<td>Tensilica HiFi Mini</td>
+<td>Xtensa DSP</td>
+<td style="text-align:right">10 MHz</td>
+<td style="text-align:right">1 MB</td>
+<td style="text-align:right">1 MB</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>模型也选择了两个极端：</p>
+<ul>
+<li>Visual Wake Words，基于 COCO 的视觉人形存在检测，主要压力来自卷积；</li>
+<li>Google Hotword，用于关键词检测，模型较短。由于模型专有，论文使用打乱后的权重和偏置进行性能测量。</li>
+</ul>
+<p>模型采用 int8 <code>.tflite</code> FlatBuffer。benchmark 连续向同一模型输入多个样本，计量每次推理的周期。<strong>初始化、模型加载和运行时配置时间没有计入 Table 2</strong>，因为作者关注长期运行系统中的重复推理成本。</p>
+<p>这个口径决定了 Table 2 能回答稳态 <code>Invoke()</code> 开销，不能用来判断冷启动或首次推理延迟。</p>
+<h2 id="Table-2：解释器开销究竟多大"><a href="#Table-2：解释器开销究竟多大" class="headerlink" title="Table 2：解释器开销究竟多大"></a>Table 2：解释器开销究竟多大</h2><p>论文给出 Total Cycles 和 Calculation Cycles，二者差值就是解释器调度等非 kernel 计算：</p>
+<script type="math/tex; mode=display">
+C_{interpreter}=C_{total}-C_{calculation}</script><p>解释器开销比例为：</p>
+<script type="math/tex; mode=display">
+R_{interpreter}=\frac{C_{total}-C_{calculation}}{C_{total}}\times100\%</script><p>核心结果如下：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>平台与模型</th>
+<th style="text-align:right">Total Cycles</th>
+<th style="text-align:right">Calculation Cycles</th>
+<th style="text-align:right">论文报告的 Interpreter Overhead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cortex-M4 VWW Reference</td>
+<td style="text-align:right">18,990.8K</td>
+<td style="text-align:right">18,987.1K</td>
+<td style="text-align:right">&lt;0.1%</td>
+</tr>
+<tr>
+<td>Cortex-M4 VWW Optimized</td>
+<td style="text-align:right">4,857.7K</td>
+<td style="text-align:right">4,852.9K</td>
+<td style="text-align:right">&lt;0.1%</td>
+</tr>
+<tr>
+<td>Cortex-M4 Hotword Reference</td>
+<td style="text-align:right">45.1K</td>
+<td style="text-align:right">43.7K</td>
+<td style="text-align:right">3.3%</td>
+</tr>
+<tr>
+<td>Cortex-M4 Hotword Optimized</td>
+<td style="text-align:right">36.4K</td>
+<td style="text-align:right">34.9K</td>
+<td style="text-align:right">4.1%</td>
+</tr>
+<tr>
+<td>HiFi DSP VWW Reference</td>
+<td style="text-align:right">387,341.8K</td>
+<td style="text-align:right">387,330.6K</td>
+<td style="text-align:right">&lt;0.1%</td>
+</tr>
+<tr>
+<td>HiFi DSP VWW Optimized</td>
+<td style="text-align:right">49,952.3K</td>
+<td style="text-align:right">49,946.4K</td>
+<td style="text-align:right">&lt;0.1%</td>
+</tr>
+<tr>
+<td>HiFi DSP Hotword Reference</td>
+<td style="text-align:right">990.4K</td>
+<td style="text-align:right">987.4K</td>
+<td style="text-align:right">0.3%</td>
+</tr>
+<tr>
+<td>HiFi DSP Hotword Optimized</td>
+<td style="text-align:right">88.4K</td>
+<td style="text-align:right">84.6K</td>
+<td style="text-align:right">4.3%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>VWW 的 kernel 很重，解释器开销低于 0.1%。Hotword 总计算较短，同样几千周期的节点遍历与分派就会占到几个百分点。</p>
+<p>优化 kernel 后，Interpreter overhead 的百分比可能上升。原因不是解释器变慢，而是分母中的计算周期下降了：</p>
+<script type="math/tex; mode=display">
+R=\frac{C_I}{C_I+C_K}</script><p>若解释器周期 $C_I$ 近似固定，而 kernel 周期 $C_K$ 大幅下降，$R$ 自然上升。例如 Cortex-M4 Hotword 从 3.3% 变为 4.1%，HiFi DSP Hotword 从 0.3% 变为 4.3%。</p>
+<p>这就是 Amdahl 定律在这里的直观表现：只优化系统中的一部分，总体加速受其余部分限制。</p>
+<blockquote>
+<p><strong>表格位置 2：</strong>建议保留上面的精简版 Table 2，不直接贴论文整表截图。可额外加一张“优化前后固定解释器开销占比变化”的 100 单位示意条，帮助理解比例为什么会上升。</p>
+</blockquote>
+<h2 id="kernel-加速不等于整个模型按同样倍数加速"><a href="#kernel-加速不等于整个模型按同样倍数加速" class="headerlink" title="kernel 加速不等于整个模型按同样倍数加速"></a>kernel 加速不等于整个模型按同样倍数加速</h2><p>我当时用“卷积加速只是缩短了一部分时间，所以整个模型可能只快 1.5 倍”来解释端到端差距，这个方向是对的，关键是看卷积原本占总时间多少。假设卷积占一半运行时间，卷积 kernel 快 3 倍，其他部分不变，那么：</p>
+<script type="math/tex; mode=display">
+S_{total}=\frac{T}{T/2+(T/2)/3}=1.5</script><p>这只是说明 Amdahl 定律的例子，不是论文中的实测值。优化幅度再大，未优化的调度、数据搬运和其他算子仍会留在总时间里。</p>
+<p>用论文的 Total Cycles 重新计算 Cortex-M4 上 VWW 的加速比：</p>
+<script type="math/tex; mode=display">
+S_{VWW,M4}=\frac{18,990.8}{4,857.7}\approx3.91</script><p>论文正文写 CMSIS-NN 带来“more than 4x speedup”，但表中数值约为 3.91 倍。即使用 Calculation Cycles 计算：</p>
+<script type="math/tex; mode=display">
+\frac{18,987.1}{4,852.9}\approx3.91</script><p>仍然不到 4 倍。正文的“more than 4x”和表格可复算的 3.91 倍不一致；我这里按表格数值报告，并把差异标出来。</p>
+<p>Cortex-M4 Hotword 的总周期加速为：</p>
+<script type="math/tex; mode=display">
+S_{Hotword,M4}=\frac{45.1}{36.4}\approx1.24</script><p>也就是延迟降低约：</p>
+<script type="math/tex; mode=display">
+1-\frac{36.4}{45.1}\approx19.3\%</script><p>换成“新系统相对旧系统的吞吐速度”可以说约 1.24 倍，论文将其概括为 kernel speed 约提升 25%。两种百分比口径不同：一个是 speedup，一个是 latency reduction，不能混写。</p>
+<p>论文这个“约 25%”可以从计算周期列复算：$43.7/34.9\approx1.252$，指 kernel 计算部分快约 25%；端到端总周期则是 $45.1/36.4\approx1.239$，约快 24%，对应延迟下降约 19.3%。</p>
+<p>HiFi DSP 上 VWW 的加速为：</p>
+<script type="math/tex; mode=display">
+S_{VWW,DSP}=\frac{387,341.8}{49,952.3}\approx7.75</script><p>这与论文概括的 7.7 倍一致。</p>
+<h2 id="Table-3：26-5-kB-为什么不是-VWW-总内存"><a href="#Table-3：26-5-kB-为什么不是-VWW-总内存" class="headerlink" title="Table 3：26.5 kB 为什么不是 VWW 总内存"></a>Table 3：26.5 kB 为什么不是 VWW 总内存</h2><p>论文还报告 Interpreter 本身的 footprint 最高不到 2 kB。完整应用占用会随模型所需的算子、运行时结构和 Tensor Arena 改变，因此不能把这个数字当成任意 TFLM 应用的总内存。</p>
+<p>Table 3 在 SparkFun Edge 上报告了 persistent 与 nonpersistent 两类运行时分配。它不是 <code>.tflite</code> 文件大小，也不等同于整块开发板上所有代码、栈、驱动和应用占用的总 RAM。</p>
+<p>论文把这部分内存分成 persistent 与 nonpersistent：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align:right">Persistent</th>
+<th style="text-align:right">Nonpersistent</th>
+<th style="text-align:right">Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Convolutional Reference</td>
+<td style="text-align:right">1.29 kB</td>
+<td style="text-align:right">7.75 kB</td>
+<td style="text-align:right">9.04 kB</td>
+</tr>
+<tr>
+<td>Google Hotword Reference</td>
+<td style="text-align:right">12.12 kB</td>
+<td style="text-align:right">680 bytes</td>
+<td style="text-align:right">12.80 kB</td>
+</tr>
+<tr>
+<td>VWW Reference</td>
+<td style="text-align:right">26.50 kB</td>
+<td style="text-align:right">55.30 kB</td>
+<td style="text-align:right">81.79 kB</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>VWW 的 26.50 kB 只是持久部分，55.30 kB 是非持久部分，总量是 81.79 kB。论文正文有一句“the framework consumes 26.5 KB”，容易让人把持久开销误读成总运行内存，Table 3 才给出了完整分解。</p>
+<p>按显示值相加：</p>
+<script type="math/tex; mode=display">
+26.50+55.30=81.80\text{ kB}</script><p>而表中总量为 81.79 kB，相差 0.01 kB。论文没有解释这个差异；可能与未显示精度或独立舍入有关，但仅凭表格不能确定原因。无论如何，不能因此把 26.50 kB 当成总量。</p>
+<p>三种模型的内存构成差异也很有意思：小型卷积模型和 VWW 的中间 activation 较大，nonpersistent 占主导；Hotword 的 nonpersistent 只有 680 bytes，persistent 反而占主要部分。论文没有继续细分 Hotword 的 12.12 kB，因此仅凭表格不能断言它全部来自某一类状态。</p>
+<blockquote>
+<p><strong>配图位置 8：</strong>可直接重绘论文 Table 3 为堆叠柱状图，persistent 与 nonpersistent 使用两种颜色，柱顶标总量。VWW 柱必须标 81.79 kB，不能只标 26.5 kB。</p>
+</blockquote>
+<h2 id="Benchmark-和-Profiler-解决的是两件事"><a href="#Benchmark-和-Profiler-解决的是两件事" class="headerlink" title="Benchmark 和 Profiler 解决的是两件事"></a>Benchmark 和 Profiler 解决的是两件事</h2><p>Benchmark 提供固定模型、输入和测量规则，用于公平比较不同硬件与 kernel。论文写的是 MLPerf 采用了 TFLM 的 benchmark；tinyMLPerf 则在这类 benchmark 上加入准确率指标。两者不要合并说成同一条准确率规则。</p>
+<p>Profiler 用来回答“时间花在哪里”。TFLM 提供插桩 hook，开发者可以找到性能关键路径和瓶颈算子，再决定是替换 kernel、调整模型，还是检查数据搬运。</p>
+<p>如果一个模型总延迟为：</p>
+<script type="math/tex; mode=display">
+T=8+12+6+1=27\text{ ms}</script><p>其中只有最后 1 ms 是调度，把它优化到 0.2 ms 后：</p>
+<script type="math/tex; mode=display">
+T'=8+12+6+0.2=26.2\text{ ms}</script><p>总体加速比为：</p>
+<script type="math/tex; mode=display">
+S=\frac{27}{26.2}\approx1.031</script><p>延迟只下降约：</p>
+<script type="math/tex; mode=display">
+1-\frac{26.2}{27}\approx2.96\%</script><p>这时更应该调查 12 ms 的瓶颈算子，而不是继续抠解释器调度。如果它来自 NPU 不支持的 CPU fallback，还可能同时拖累计算和数据搬运。</p>
+<p>这组 27 ms 的数字是我用于理解 Amdahl 定律的教学例子，不是 TFLM 论文实验数据。</p>
+<h2 id="论文证明了什么，也留下了什么"><a href="#论文证明了什么，也留下了什么" class="headerlink" title="论文证明了什么，也留下了什么"></a>论文证明了什么，也留下了什么</h2><p>这篇论文的证据支持三个主要结论：</p>
+<ol>
+<li>TFLM 能在缺少常规系统能力的 MCU/DSP 上，以固定 Arena 和小型解释器运行 int8 神经网络。</li>
+<li>对 VWW 这类长 kernel 模型，解释器运行时开销远低于 0.1%；短模型中占比会上升到几个百分点。</li>
+<li>平台厂商可以逐算子接入 CMSIS-NN 等优化库，在不更换模型格式与整体框架的情况下获得显著加速。</li>
+</ol>
+<p>论文的实验证据覆盖 Cortex-M4、HiFi Mini DSP、VWW 和 Hotword，报告稳态推理周期和内存分解；没有系统报告冷启动、能耗、多模型并发，也没有与编译式框架做端到端同条件对比。论文还明确说 TFLM 当时不支持动态 shape。因此，它支持的结论是：在这两类硬件和所测模型上，稳态解释器开销很小；迁移到不同模型、不同加速器或不同执行路径时，仍要重新测量。</p>
+<h2 id="放到现在，我为什么仍然觉得它值得读"><a href="#放到现在，我为什么仍然觉得它值得读" class="headerlink" title="放到现在，我为什么仍然觉得它值得读"></a>放到现在，我为什么仍然觉得它值得读</h2><p>即使目标平台换成更新的 MCU、带加速器的平台或不同的离线编译器，TFLM 提出的几个系统问题仍然值得先问：</p>
+<ul>
+<li>模型格式如何连接训练和部署；</li>
+<li>哪些算子真的得到后端支持；</li>
+<li>activation、persistent state 与 workspace 如何占用 SRAM；</li>
+<li>CPU fallback 如何影响延迟与数据搬运；</li>
+<li>框架如何在硬件碎片化下保持可移植性；</li>
+<li>通用调度与平台专用 kernel 如何分工。</li>
+</ul>
+<p>我还没有拿到原先设想中的 M33+A55 开发板，后续更可能使用 STM32N6570-DK。这篇论文的实验没有覆盖这些目标板，所以我会把它当作理解运行时边界的基础，而不是性能预测。下一篇按任务清单要读的是 <em>Memory-efficient Patch-based Inference for Tiny Deep Learning</em>：它继续追问当单个 activation 本身都难以放进片上 SRAM 时，如何改变推理执行方式。TFLM 的生命周期复用能减少“同时活着”的内存总量，却不能自动把一个过大的单张量变小。</p>
+<p>接下来涉及 STM32N6570-DK 时，需要重新核对目标工具链和运行时究竟支持什么、哪些算子会回退到 CPU、张量布局是否要转换、workspace/DMA/synchronization 需要多少内存，以及有多少 SRAM 真正能给模型连续使用。我还没有在这块板子上复现论文实验，因此不会把 Cortex-M4 的 3.91 倍直接外推过去。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>TFLM 的结构可以浓缩成下面这条链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">训练模型</span><br><span class="line">  ↓ TensorFlow Lite Converter</span><br><span class="line">.tflite FlatBuffer：算子、张量描述、量化参数、固定权重</span><br><span class="line">  ↓ Model Loader 零拷贝读取</span><br><span class="line">OpResolver 找到已编译 kernel</span><br><span class="line">  ↓ init / prepare</span><br><span class="line">Memory Planner 计算大小、生命周期和 Arena offset</span><br><span class="line">  ↓ 固定 interpreter-lifetime allocations，并规划可复用 activation offsets</span><br><span class="line">应用写入输入并调用 Interpreter::Invoke()</span><br><span class="line">  ↓ 按拓扑顺序遍历节点</span><br><span class="line">逐个调用算子的 invoke()</span><br><span class="line">  ↓ reference 或平台优化 kernel 完成计算</span><br><span class="line">应用读取输出</span><br></pre></td></tr></table></figure>
+<p>我现在能够把这篇论文讲清楚，不是因为背住了几个类名，而是因为每个模块都能回答四个问题：它读取什么、产生什么、使用哪类内存、在初始化还是每次推理中发生。</p>
+<p>真正容易混淆的地方也可以压缩成几句话：</p>
+<ul>
+<li><code>.tflite</code> 保存固定权重和中间张量描述，不保存输入相关的中间数值；</li>
+<li>Interpreter 解释模型数据并调度 kernel，不生成目标机器码；</li>
+<li><code>Interpreter::Invoke()</code> 执行整个模型，算子 <code>invoke()</code> 只执行一个节点；</li>
+<li>Figure 4 横轴是 Memory Size、纵轴是 Time，宽度表示字节数、高度表示生命周期；</li>
+<li>多模型顺序运行时，模型专属 interpreter-lifetime allocations 相加，论文允许复用的 evaluation-lifetime 区域取最大值；</li>
+<li>kernel 加速主要缩短计算时间，固定解释器开销的百分比反而可能上升；</li>
+<li>论文 Table 2 的 Cortex-M4 VWW 加速约 3.91 倍，Table 3 的 VWW 总内存为 81.79 kB。</li>
+</ul>
+<p>这些细节连起来以后，TFLM 就不再是一堆 API，而是一套在极小资源和碎片化硬件之间做取舍的系统设计。</p>
+<h2 id="配图与表格清单"><a href="#配图与表格清单" class="headerlink" title="配图与表格清单"></a>配图与表格清单</h2><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>放置位置</th>
+<th>素材</th>
+<th>需要表达的重点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>封面</td>
+<td>自制 TFLM 推理流水线</td>
+<td><code>.tflite</code> 如何走到 MCU 输出</td>
+</tr>
+<tr>
+<td>阅读方法后</td>
+<td>自制 AI 原生阅读流程图</td>
+<td>扫描、主动理解、核验与重建</td>
+</tr>
+<tr>
+<td><code>.tflite</code> 生成部分</td>
+<td>论文 Figure 1（PDF 第 4 页）</td>
+<td>Training Graph 到 FlatBuffer</td>
+</tr>
+<tr>
+<td>Interpreter 部分</td>
+<td>论文 Figure 2（PDF 第 5 页）</td>
+<td>Client API、Loader、Resolver、Planner、Operator 的关系</td>
+</tr>
+<tr>
+<td>Interpreter 部分</td>
+<td>自制 Invoke 时序图</td>
+<td>整模型 Invoke 与单算子 invoke</td>
+</tr>
+<tr>
+<td>Tensor Arena 部分</td>
+<td>论文 Figure 3（PDF 第 6 页）</td>
+<td>Head、Tail、临时区域与地址方向</td>
+</tr>
+<tr>
+<td>Memory Planner 部分</td>
+<td>论文 Figure 4（PDF 第 7 页）</td>
+<td>横轴内存、纵轴时间、生命周期复用</td>
+</tr>
+<tr>
+<td>多模型部分</td>
+<td>论文 Figure 5（PDF 第 8 页）</td>
+<td>单模型与 multitenancy 的内存布局</td>
+</tr>
+<tr>
+<td>性能实验部分</td>
+<td>正文中的 Markdown Table 2（PDF 第 10 页）</td>
+<td>Total、Calculation 和 Interpreter overhead</td>
+</tr>
+<tr>
+<td>内存实验部分</td>
+<td>正文中的 Markdown Table 3（PDF 第 10 页）</td>
+<td>persistent、nonpersistent 和总量</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>论文原图发布时应标明论文标题、作者和 MLSys 2021，并裁掉多余白边。自制示意图可以重新设计颜色与布局，但不能改变原始坐标、数值和比较关系。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Robert David et al. <em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em>. MLSys 2021.</li>
+<li>TensorFlow Lite Micro：<a target="_blank" rel="noopener" href="https://github.com/tensorflow/tflite-micro">GitHub Repository</a></li>
+<li>Arm CMSIS-NN：<a target="_blank" rel="noopener" href="https://arm-software.github.io/CMSIS-NN/">CMSIS-NN Documentation</a></li>
+<li>S. Keshav. <a target="_blank" rel="noopener" href="https://www.lib.sfu.ca/system/files/32376/paper-reading.pdf">How to Read a Paper</a></li>
+</ul>
+</article><footer class="literature-footer"><p>个人文献阅读笔记，不代表任何学校、机构或论文作者的官方立场。</p></footer></main></body></html>
