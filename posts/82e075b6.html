@@ -1,0 +1,518 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现 | 祝炩烟's Blog</title><meta name="author" content="祝炩烟"><meta name="copyright" content="祝炩烟"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="记录 2026 年 9 月 8 日至 14 日的学习：MCUNetV2 的运行时与峰值内存理解、优化课程与 NLP 作业表达复盘，以及 GazeShift 首轮受限子集训练中暴露出的评估协议问题。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现">
+<meta property="og:url" content="https://cand1elight.github.io/posts/82e075b6.html">
+<meta property="og:site_name" content="祝炩烟&#39;s Blog">
+<meta property="og:description" content="记录 2026 年 9 月 8 日至 14 日的学习：MCUNetV2 的运行时与峰值内存理解、优化课程与 NLP 作业表达复盘，以及 GazeShift 首轮受限子集训练中暴露出的评估协议问题。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://204180371.xyz/PicGo/avatar.png">
+<meta property="article:published_time" content="2026-09-13T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-21T02:22:21.288Z">
+<meta property="article:author" content="祝炩烟">
+<meta property="article:tag" content="TinyML">
+<meta property="article:tag" content="GazeShift">
+<meta property="article:tag" content="MCUNetV2">
+<meta property="article:tag" content="论文精读">
+<meta property="article:tag" content="学习记录">
+<meta property="article:tag" content="优化">
+<meta property="article:tag" content="复现">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://204180371.xyz/PicGo/avatar.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现",
+  "url": "https://cand1elight.github.io/posts/82e075b6.html",
+  "image": "https://204180371.xyz/PicGo/avatar.png",
+  "datePublished": "2026-09-13T16:00:00.000Z",
+  "dateModified": "2026-09-21T02:22:21.288Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "祝炩烟",
+      "url": "https://cand1elight.github.io/"
+    }
+  ]
+}</script><link rel="shortcut icon" href="https://204180371.xyz/PicGo/youzi.png"><link rel="canonical" href="https://cand1elight.github.io/posts/82e075b6.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":true,"top_n_per_article":3,"unescape":false,"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css" media="defer" onload="this.media='all'"><!-- hexo injector head_end start --><link rel="stylesheet" href="https://npm.elemecdn.com/anzhiyu-blog@2.0.4/css/runtime/runtime.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.css" /><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/font-awesome-animation.min.css" media="defer" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/tag_plugins.css" media="defer" onload="this.media='all'"><script src="https://cdn.cbd.int/hexo-butterfly-tag-plugins-plus@latest/lib/assets/carousel-touch.js"></script><link rel="stylesheet" href="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/animate.min.css" media="print" onload="this.media='screen'"><!-- hexo injector head_end end --><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body><div id="web_bg" style="background-image: url(https://204180371.xyz/PicGo/fulilian.jpg);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">40</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">77</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/literature-reports/"><i class="fa-fw fas fa-book-open faa-tada"></i><span> 文献阅读</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="https://204180371.xyz/PicGo/youzi.png" alt="Logo"><span class="site-name">祝炩烟's Blog</span></a><a class="nav-page-title" href="/"><span class="site-name">2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现</span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/"><i class="fa-fw fas fa-home faa-tada"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/archives/"><i class="fa-fw fas fa-archive faa-tada"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/literature-reports/"><i class="fa-fw fas fa-book-open faa-tada"></i><span> 文献阅读</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/comments/"><i class="fa-fw fas fa-envelope faa-tada"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/bangumis/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili1"></use></svg><span> 追番</span></a></div><div class="menus_item"><a class="site-page faa-parent animated-hover" href="/about/"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-zhifeiji"></use></svg><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-13T16:00:00.000Z" title="发表于 2026-09-14 00:00:00">2026-09-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-21T02:22:21.288Z" title="更新于 2026-09-21 10:22:21">2026-09-21</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%A4%8D%E7%9B%98/">技术复盘</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>记录区间：2026 年 9 月 8 日至 14 日（Asia/Hong_Kong）。</strong></p>
+<p>这是承接上一篇 9 月 1 日至 7 日记录的连续七日学习档案。本文把“完成的阅读或交付物”“形成的理解”“尚待代码或实验验证的判断”分开写。没有独立题目、实现、日志或实验支撑的内容，只记录为接触或理解，不冒充为掌握。</p>
+</blockquote>
+<p>这一周的主题不是多读了一篇论文，而是开始把“读懂论文”拆成几个能够被检查的层次：论文改变了什么运行时行为，图表和数字到底支持什么结论，代码与评估协议是否真的和论文一致。</p>
+<p>这也让我在 GazeShift 的首轮训练中第一次主动停下来，拒绝把一个看似不错的数字直接写成“复现成功”。这比得到那个数字本身更重要。</p>
+<h2 id="本周可核验的学习轨迹"><a href="#本周可核验的学习轨迹" class="headerlink" title="本周可核验的学习轨迹"></a>本周可核验的学习轨迹</h2><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>时间</th>
+<th>已完成或形成的内容</th>
+<th>证据边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>9 月 9 日</td>
+<td>建立 AI 原生论文精读流程；学习优化基础的凸性、Hessian 与鞍点</td>
+<td>是阅读方法和课程理解，不是新的模型或实验结果</td>
+</tr>
+<tr>
+<td>9 月 9—13 日</td>
+<td>完成 MCUNetV2 主体阅读、两轮检查与补讲，论文清单达到 2/5</td>
+<td>阅读结项不等于代码核查、PC 复现或板端验证结项</td>
+</tr>
+<tr>
+<td>9 月 11 日</td>
+<td>阅读 Lecture 4，涉及损失、反向传播和 Softmax Jacobian</td>
+<td>没有独立实现或作业结项证据</td>
+</tr>
+<tr>
+<td>9 月 13 日</td>
+<td>对 NLP 课程作业的报告与 Notebook 做结果表达、结构和提交包复核</td>
+<td>模型、数据、训练、图表和数值没有在本周重跑或修改</td>
+</tr>
+<tr>
+<td>9 月 14 日</td>
+<td>重新审计 D2L 与论文的学习路线；开始 GazeShift 受限子集训练</td>
+<td>D2L 前九章是本周确认的既有基础，不是本周新完成内容；GazeShift 仅得到初步子集日志</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="先改变读法：不把-AI-的总结当成自己的研究理解"><a href="#先改变读法：不把-AI-的总结当成自己的研究理解" class="headerlink" title="先改变读法：不把 AI 的总结当成自己的研究理解"></a>先改变读法：不把 AI 的总结当成自己的研究理解</h2><p>9 月 9 日，我把论文阅读流程整理成了三段，而不是继续让 AI 从头到尾替我解释。</p>
+<ol>
+<li><strong>机器全量扫描。</strong> 覆盖正文、附录、图表、公式、代码、相关工作和版本差异，先建立材料地图。</li>
+<li><strong>本人决策性精读。</strong> 在问题设定、输入输出、状态变化、资源成本、比较条件和反例处先做预测，再阅读原文。</li>
+<li><strong>可执行验证。</strong> 把理解压到 shape、SRAM、MAC、张量生命周期、代码路径或最小实验上。</li>
+</ol>
+<p>为了让阅读不再变成“看过一遍”，我开始为核心论文建立五类地图：<code>Claim</code>、<code>Evidence</code>、<code>Assumption</code>、<code>Implementation</code> 和 <code>Open question</code>。进度也不再只记“读到第几页”，而是区分内容覆盖率、证据审计率和复现准备度。</p>
+<p>这背后是一个很实际的担心：如果 AI 过早替我总结创新点、给出结论，我会得到一段流畅的文字，却没有留下自己的预测、疑问和可推翻的判断。真正值得继续追的研究问题，往往来自论文主张、我自己的预测与设备现象之间不一致的地方。</p>
+<h2 id="MCUNetV2：把“更小的网络”改写成“更少的同时存活数据”"><a href="#MCUNetV2：把“更小的网络”改写成“更少的同时存活数据”" class="headerlink" title="MCUNetV2：把“更小的网络”改写成“更少的同时存活数据”"></a>MCUNetV2：把“更小的网络”改写成“更少的同时存活数据”</h2><p>本周的主线是 <strong>MCUNetV2: Memory-Efficient Patch-based Inference for Tiny Deep Learning</strong>。它一开始让我误以为是一种“把多种已有方法有机结合起来的新网络”。读完后，这个概括被彻底改正。</p>
+<p>更准确的说法是：<strong>MCUNetV2 的核心是面向 MCU 峰值激活内存的 patch-by-patch、跨层推理调度。</strong> 它优先改变的是推理时“何时计算哪些局部数据、哪些中间张量必须同时存在”，而不是先发明一组新的卷积层。</p>
+<h3 id="从参数大小转向-activation-peak"><a href="#从参数大小转向-activation-peak" class="headerlink" title="从参数大小转向 activation peak"></a>从参数大小转向 activation peak</h3><p>CNN 前段具有较高的空间分辨率，完整 activation 往往是 SRAM 的峰值来源。判断一层张量大小时，最基本的量纲是：</p>
+<script type="math/tex; mode=display">
+\text{activation bytes}=H\times W\times C\times \text{bytes per element}.</script><p>这不是说模型参数或权重不重要，而是它们无法替代运行时峰值的判断。一个权重较小的模型，仍可能因为前段高分辨率 feature map 无法放入 SRAM 而不能运行。</p>
+<p>因此，问题从“怎样把模型缩小”变成了：能否不要同时 materialize 整张早期 feature map，只计算当前输出区域真正需要的局部中间结果？</p>
+<h3 id="patch-不是-batch，低-SRAM-也不等于更快"><a href="#patch-不是-batch，低-SRAM-也不等于更快" class="headerlink" title="patch 不是 batch，低 SRAM 也不等于更快"></a>patch 不是 batch，低 SRAM 也不等于更快</h3><p>阅读过程中需要反复纠正几个直觉。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>旧直觉</th>
+<th>校正后的理解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>patch 就是把输入拆成一批 batch</td>
+<td>patch 是当前局部空间工作区域，batch 是样本维度上的并行组织方式，两者不是同一概念</td>
+</tr>
+<tr>
+<td>分块后内存低，所以推理一定更快</td>
+<td>patch 边界必须重叠以满足卷积依赖，会引入重复计算，SRAM 降低可以伴随延迟上升</td>
+</tr>
+<tr>
+<td>MACs 减少就等于真实 latency 降低</td>
+<td>实际 latency 还受内存访问、缓冲、控制开销、未分块部分和具体硬件 kernel 影响</td>
+</tr>
+<tr>
+<td>运行时优化意味着设备会在每个输入上重新搜索方案</td>
+<td>网络与调度可以在部署前确定，运行时优化的是实际推理时的执行顺序、buffer 生命周期与复用</td>
+</tr>
+<tr>
+<td>per-patch 思想一定由 MCUNetV2 首创</td>
+<td>空间局部和跨层计算已有相关探索；这篇论文的贡献需要按原文的任务、调度、代价缓解与联合设计来限定</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>在固定网络上，分块跨多层执行可以避免完整物化早段 activation。代价是相邻 output patch 的依赖区重叠，部分中间计算会重复。</p>
+<p>于是论文再引入 <strong>receptive-field redistribution</strong>，把前段扩大感受野的压力部分后移，减少 patch 重叠带来的重复计算；最后用 architecture × schedule 的联合搜索寻找满足硬件预算的组合。它们不是平均并列的三个新模块，而是围绕核心调度的主次关系：调度减少峰值内存，感受野重分配缓解调度代价，联合搜索自动选择配套结构与调度。</p>
+<h3 id="图和表必须回答不同问题"><a href="#图和表必须回答不同问题" class="headerlink" title="图和表必须回答不同问题"></a>图和表必须回答不同问题</h3><p>本周另一个进步，是不再把所有实验表格混成“MCUNetV2 更好”的一句话。</p>
+<ul>
+<li>固定网络、只改变执行方式的比较，用来观察内存收益与重复计算代价。</li>
+<li>最终联合设计的比较，用来回答在给定预算下能否取得更高精度。</li>
+</ul>
+<p>例如，论文 Figure 6 的 MbV2-RD 在逐层执行时约需 <code>300 kB</code>，<code>3×3</code> patch 时约 <code>51 kB</code>，但延迟从 <code>540 ms</code> 增至 <code>564 ms</code>。它说明了“能显著省内存，却不保证加速”。</p>
+<p>Table 2 中，MCUNet 到 MCUNetV2-H7 的 ImageNet Top-1 从 <code>68.5%</code> 提高到 <code>71.8%</code>，MACs 从 <code>126M</code> 增至 <code>256M</code>，SRAM 从 <code>452 kB</code> 增至 <code>465 kB</code>。这个比较支持的是“在接近 SRAM 预算下获得更高精度”，而不是“全面更省内存、计算和时间”。</p>
+<p>这些是论文报告的数字，不是我的板端测量。</p>
+<h3 id="阅读方式也需要被修正"><a href="#阅读方式也需要被修正" class="headerlink" title="阅读方式也需要被修正"></a>阅读方式也需要被修正</h3><p>我在学习中明确感到，过度拆碎的追问、不断追加的小题会打断系统结构，甚至让人疲劳。于是阅读方式改成以一个完整小节为单位：同一轮中尽量给出判断、纠错、机制、原文术语、图表与附录的连接，而不是把内容切成无休止的微测验。</p>
+<p>我给自己的结项标准也更高：不是“能复述摘要”，而是能独立解释关键细节、读懂图表、完成必要计算，并说明一个结论在什么条件下不成立。</p>
+<p>截至 9 月 13 日，MCUNetV2 的主体阅读、两轮检查和定向补讲完成，论文清单记为 <code>2/5</code>。最后补讲中有一部分依据是我明确确认理解，并非全部都经过独立迁移测试；官方代码交叉核查、PC 机制实验和板端 SRAM/延迟测量仍未开始。</p>
+<h2 id="优化课程与-NLP-作业：把“指标”“驻点”和“生成质量”分开"><a href="#优化课程与-NLP-作业：把“指标”“驻点”和“生成质量”分开" class="headerlink" title="优化课程与 NLP 作业：把“指标”“驻点”和“生成质量”分开"></a>优化课程与 NLP 作业：把“指标”“驻点”和“生成质量”分开</h2><p>课程学习没有单独构成大项目，但补上了科研表达里经常会用到的判断。</p>
+<h3 id="优化基础：∇L-0-不是最小值的同义词"><a href="#优化基础：∇L-0-不是最小值的同义词" class="headerlink" title="优化基础：∇L = 0 不是最小值的同义词"></a>优化基础：∇L = 0 不是最小值的同义词</h3><p>9 月 9 日学习了约束与无约束优化、网格搜索的维数灾难、凸函数与凸集、一阶条件、梯度、Hessian、鞍点，以及把高维问题沿某一方向写成 $\phi(t)$ 的思路。</p>
+<p>维数灾难的量级可以写成：</p>
+<script type="math/tex; mode=display">
+N=O\!\left((1/\varepsilon)^d\right).</script><p>当维度 $d$ 增大时，即使每一维只追求固定精度，穷举式网格点数也会急剧膨胀。</p>
+<p>本周最需要纠正的概念是：</p>
+<script type="math/tex; mode=display">
+\nabla L(x)=0</script><p>只说明 $x$ 是驻点，不能推出它就是极小值。Hessian 出现正负特征值时，对应的可能是鞍点。9 月 11 日还阅读了 Lecture 4 的损失函数、反向传播和 Softmax Jacobian 内容，但没有独立代码实现或课程结项证据，因此只把它记为知识覆盖。</p>
+<h3 id="NLP-作业：PPL-不能替代故事质量"><a href="#NLP-作业：PPL-不能替代故事质量" class="headerlink" title="NLP 作业：PPL 不能替代故事质量"></a>NLP 作业：PPL 不能替代故事质量</h3><p>9 月 13 日处理的是一个既有 NLP 课程作业的报告、Notebook 和交付物复核，不是重新训练模型。背景实验涉及约 <code>42M</code> 参数的 Llama-2 小模型、中文持续预训练、英文遗忘、不同解码策略与 PPL。</p>
+<p>本周可留下的学习点包括：</p>
+<ul>
+<li>训练集、验证集和测试集不能混用，不能用测试集选择超参数；</li>
+<li>语言模型的训练目标是预测下一个 token，过程由前向计算、损失、反向传播和优化更新构成；</li>
+<li>Greedy、Beam Search、temperature、top-k/top-p sampling 在稳定性、多样性和失控风险之间取舍不同；</li>
+<li>PPL 是语言模型预测指标，不能直接替代人物身份一致性、事件合理性或固定长度截断后的故事完整性。</li>
+</ul>
+<p>作业报告中曾出现中文 PPL <code>4.80</code>、英文回放设置下中文 PPL <code>5.05</code> 与英文 PPL <code>2.86</code> 等结果。它们只是该作业的实验记录，不能被外推为一般规律。</p>
+<p>这次复核保持模型、数据、训练、表格、图与数值不变，<code>56</code> 个 Notebook 单元中只修改了最后一个 Markdown 总结单元。真正调整的是表达：删除重复的对称结构与预先辩解，使文字更直接地说明观察到的结果和限制。它不是“规避检测”的工作，而是一次作者声音与结果一致性的审查。</p>
+<h2 id="GazeShift：第一轮跑通后，评估协议反而成为最大问题"><a href="#GazeShift：第一轮跑通后，评估协议反而成为最大问题" class="headerlink" title="GazeShift：第一轮跑通后，评估协议反而成为最大问题"></a>GazeShift：第一轮跑通后，评估协议反而成为最大问题</h2><p>9 月 14 日，GazeShift 从论文阅读进入受限子集复现。这是本周第二条主线，也是最能说明“先看到数字，再审计数字”的一次经历。</p>
+<h3 id="先把环境和数据流跑通"><a href="#先把环境和数据流跑通" class="headerlink" title="先把环境和数据流跑通"></a>先把环境和数据流跑通</h3><p>我在共享 RTX 5090 服务器的数据盘建立独立工作区，将代码、环境、数据和实验输出分开，避免修改他人环境。启动阶段依次遇到并处理了：</p>
+<ul>
+<li>缺少 <code>torchinfo</code>；</li>
+<li>旧 Lightning 与新版 <code>setuptools/pkg_resources</code> 的兼容问题；</li>
+<li>数据模块写死作者服务器路径；</li>
+<li>本地元数据路径与 <code>flipped/fliped</code> 命名不一致；</li>
+<li>checkpoint 在 PyTorch 2.6 下的 <code>weights_only</code> 加载兼容；</li>
+<li>缺失父目录，以及共享 GPU 被其他任务占满。</li>
+</ul>
+<p>先完成导入、CUDA、真实数据读取与前反向传播 smoke test，才开始长训练。一次 <code>fast_dev_run</code> 的验证因每位受试者样本数不足 <code>K=17</code> 而失败，后来确认这只是短测试截断了 calibration protocol，并不等于模型机制失败。</p>
+<h3 id="初步子集训练真正得到了什么"><a href="#初步子集训练真正得到了什么" class="headerlink" title="初步子集训练真正得到了什么"></a>初步子集训练真正得到了什么</h3><p>时间受限的初始方案从 <code>8</code> 名训练受试者扩为 <code>16</code> 名训练、<code>3</code> 名验证。配置为 <code>400×400</code> 单通道双眼图、batch size <code>30</code>、<code>20</code> 个 epoch；聊天记录中对应 <code>141,150</code> 个训练对、<code>44,550</code> 个验证对和 <code>395</code> 条静态注视验证样本，共完成 <code>148,100</code> 个 optimizer steps。</p>
+<p>日志中最好的表面结果出现在 epoch 5、step 44,430：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>记录点</th>
+<th style="text-align:right">mean angular error</th>
+<th style="text-align:right">standard deviation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Epoch 0</td>
+<td style="text-align:right"><code>3.232°</code></td>
+<td style="text-align:right">未作为最终统计结论使用</td>
+</tr>
+<tr>
+<td>Epoch 5 / Step 44,430</td>
+<td style="text-align:right"><code>2.8660°</code></td>
+<td style="text-align:right"><code>0.4000°</code></td>
+</tr>
+<tr>
+<td>Epoch 19</td>
+<td style="text-align:right"><code>3.125°</code></td>
+<td style="text-align:right">未作为最终统计结论使用</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>如果只看这张表，很容易把它讲成“接近论文 <code>1.84°</code> 的复现”。但随后检查代码和评估口径后，我停止了这种叙述。</p>
+<h3 id="为什么-2-8660°-不能和论文-1-84°-直接比较"><a href="#为什么-2-8660°-不能和论文-1-84°-直接比较" class="headerlink" title="为什么 2.8660° 不能和论文 1.84° 直接比较"></a>为什么 <code>2.8660°</code> 不能和论文 <code>1.84°</code> 直接比较</h3><p>当日审计发现：</p>
+<ul>
+<li>实际 per-person calibration 的 $K$ 是 <code>[17, 30, 40, 50, 60]</code>，均值 <code>39.4</code>，不是预期单一的 <code>K=17</code>；</li>
+<li><code>--validation_fit_size=17</code> 没有生效；</li>
+<li><code>10</code> 次评估循环固定使用 <code>random_state=42</code>，重复的是同一划分，不是独立随机划分；</li>
+<li>训练与验证只是 <code>16/3</code> 的时间受限子集，而不是论文同等协议。</li>
+</ul>
+<p>因此，这个数字只能被标为<strong>初步子集日志</strong>。它说明这条训练路径跑通并产生了可审计输出，不足以证明重现了论文，更不能用作与作者 <code>1.84°</code> 的直接优劣比较。</p>
+<p>我也纠正了一个演示层面的误区：VRGaze 的训练输入是近眼、灰度、off-axis/NIR 领域图像，普通 PC webcam 的 RGB 全脸视频不是同一分布。把普通摄像头的零样本表现当成 remote-camera 验证，会把域差异伪装成模型结论。</p>
+<p>截至本周结束，规范化的多划分重评估还被 checkpoint 兼容、输出路径和共享 GPU 占用阻断。它不是“复现失败”的终局，也绝不是“复现完成”的证据。</p>
+<h2 id="重新安排-D2L、论文与实验的比例"><a href="#重新安排-D2L、论文与实验的比例" class="headerlink" title="重新安排 D2L、论文与实验的比例"></a>重新安排 D2L、论文与实验的比例</h2><p>9 月 14 日，我一度觉得“这周进步很少”。复盘后的结论更准确：本周不是没有投入，而是成果过度集中在论文阅读、阅读流程和资料准备，代码和实验闭环明显不足，因此会产生很强的主线停滞感。</p>
+<p>同时我澄清了一个事实：中文版 D2L 2.0 的前九章已经在此前完成。这是本周确认的既有基础，不应该被写成新的完成事项。</p>
+<p>接下来的路线不再是机械地顺序刷完教材，也不应该变成只读论文。更合理的比例是：</p>
+<script type="math/tex; mode=display">
+\text{论文} : \text{代码/实验} : \text{按需补基础}
+=40\%:40\%:20\%.</script><p>D2L 以后更像工具书：注意力机制、优化和视觉基础按研究问题定向回查。真正要补的缺口是逐层 shape、累计感受野、activation 生命周期、峰值内存、真实 kernel、量化与硬件映射的独立核验。</p>
+<h2 id="本周没有发生的事，以及下一步"><a href="#本周没有发生的事，以及下一步" class="headerlink" title="本周没有发生的事，以及下一步"></a>本周没有发生的事，以及下一步</h2><p>本周没有完成 MCUNetV2 官方代码核查、PC 机制实验、板端 SRAM/延迟测量，也没有得到可与 GazeShift 论文直接比较的正式复现指标。没有单独可核验的 IELTS 课程推进，英文提升主要融入论文原文、术语和小节阅读中。</p>
+<p>下一步不应立刻再开一个新题目，而是完成两个闭环：</p>
+<ol>
+<li>对 GazeShift 固化实际有效的评估参数，修复 $K$ 与随机划分口径，做多划分或多 seed 的标准化评估。</li>
+<li>回到 MCUNetV2 官方代码，重建逐层 shape、activation 生命周期与峰值内存，明确哪些结论能在 PC 上核验，哪些必须留给真实硬件。</li>
+</ol>
+<p>这一周让我真正留下的一句话是：</p>
+<blockquote>
+<p><strong>先跑出数字不等于得到结论。只有知道数字来自什么协议、比较了什么、遗漏了什么，它才开始有研究价值。</strong></p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io">祝炩烟</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://cand1elight.github.io/posts/82e075b6.html">https://cand1elight.github.io/posts/82e075b6.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://cand1elight.github.io" target="_blank">祝炩烟's Blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/TinyML/">TinyML</a><a class="post-meta__tags" href="/tags/GazeShift/">GazeShift</a><a class="post-meta__tags" href="/tags/MCUNetV2/">MCUNetV2</a><a class="post-meta__tags" href="/tags/%E8%AE%BA%E6%96%87%E7%B2%BE%E8%AF%BB/">论文精读</a><a class="post-meta__tags" href="/tags/%E5%AD%A6%E4%B9%A0%E8%AE%B0%E5%BD%95/">学习记录</a><a class="post-meta__tags" href="/tags/%E4%BC%98%E5%8C%96/">优化</a><a class="post-meta__tags" href="/tags/%E5%A4%8D%E7%8E%B0/">复现</a></div><div class="post-share"><div class="social-share" data-image="https://204180371.xyz/PicGo/avatar.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/bed9f7f7.html" title="2026 年 9 月学习记录（9 月 15 日—21 日）：从 GazeShift 正式训练到 StreamNet"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-21</div><div class="info-item-2">2026 年 9 月学习记录（9 月 15 日—21 日）：从 GazeShift 正式训练到 StreamNet</div></div><div class="info-2"><div class="info-item-1"> 记录区间：2026 年 9 月 15 日至 21 日（Asia/Hong_Kong）。 本周包括一次完整的 GazeShift 独立训练、一轮评估代码审计、StreamNet 论文精读结项，以及论文批注和组会汇报材料。文中会把我的训练结果、作者 checkpoint 结果、论文报告数字和教学练习分开；它们不是同一类证据。  这一周最密集的工作围绕两个问题展开：GazeShift 的训练流程究竟复现到了什么程度？StreamNet 的 stream buffer 到底保存了什么？ 我得到了一个完整训练结果，也发现一个原本打算做的 calibration-degree sweep 完全没有改变实验条件。与此同时，StreamNet 的图和表也逼着我分清 tensor、patch 与 buffer。两件事合在一起，给我的提醒很直接：跑完任务不等于验证了问题；读懂名词也不等于能还原数据和执行过程。 本周学习与研究轨迹    日期 可核验推进 进度边界     9 月 15 日 更正 MCUNetV2 的贡献定位；整理 TFLM 个人学习文章；完成 GazeShift...</div></div></div></a><a class="pagination-related" href="/posts/f0b5a411.html" title="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena"><img class="cover" src="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-07</div><div class="info-item-2">2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena</div></div><div class="info-2"><div class="info-item-1">  记录区间：2026 年 9 月 1 日—9 月 7 日（香港时间）。 这是一篇只记录科研活动的周报。它基于本周对话中能够核验的阅读、推导、判断与问题；没有记录到的板端实验、逐层 profile、新模型训练和 benchmark，不会被补写成“已经完成”。9 月 7 日也没有可归入科研的实质记录，因此不把它虚构成一个成果日。  这一周最重要的进展，并不是又跑通了一个 demo，也不是得到了一个好看的数字，而是我开始把下面这件事当成研究本身：一个模型为什么有效，它的证据够不够，结论在哪些条件下会失效，真实系统的瓶颈又到底在哪里。 我在三个层面反复来回：论文中的表征与实验设计、数学公式能否被说成严谨的推导、模型进入 MCU 后的张量生命周期和执行成本。它们最后指向了同一个问题：如果未来要做端侧连续第一人称视觉，不能只说“模型很轻”或“量化了”，必须知道每一帧在何处消耗了内存、时间和能量。  一周的研究轨迹    时间 已核验的推进 这一步真正解决的问题     9 月 1 日 GazeShift 校准协议、MediaPipe/HaGRIDv2...</div></div></div></a><a class="pagination-related" href="/posts/a02823fe.html" title="D2L 学习日志：8 月 16 日的记录空白"><img class="cover" src="https://api.mtyqx.cn/api/random.php" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-16</div><div class="info-item-2">D2L 学习日志：8 月 16 日的记录空白</div></div><div class="info-2"><div class="info-item-1">记录状态信息不足。不能据此判定为休息日，也不能推断当天完成了某个章节。 在复刻学习路径时，最容易犯的错误是为了让时间线完整而自动补出一个“看起来合理”的学习日。但当前可见对话没有 8 月 16 日足够具体的章节、问题、代码或测验信息，因此这里保留空白。 这一天暂不写入以下内容：  学习时长； 是否休息； 是否完成章节； 是否遇到或解决了某个报错。  档案结论：空白本身也是学习记录的一部分。后续如果项目中出现新的原始记录，可以再补写；在此之前不编造成果。 </div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="https://204180371.xyz/PicGo/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">祝炩烟</div><div class="author-info-description">记录日常与学习过程的点点滴滴，分享知识与思考。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">40</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">77</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Cand1eLight"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon faa-parent animated-hover" href="https://github.com/Cand1eLight" target="_blank" title="Github"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-gitHub"></use></svg></a><a class="social-icon faa-parent animated-hover" href="https://space.bilibili.com/3546557553052060" target="_blank" title="BiliBili"><svg class="icon faa-tada" aria-hidden="true"><use xlink:href="#icon-bilibili"></use></svg></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">Welcome to my blog!
+记录一些日常和学习的记录!
+Ciallo～(∠・ω< )⌒☆
+</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E5%91%A8%E5%8F%AF%E6%A0%B8%E9%AA%8C%E7%9A%84%E5%AD%A6%E4%B9%A0%E8%BD%A8%E8%BF%B9"><span class="toc-number">1.</span> <span class="toc-text">本周可核验的学习轨迹</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%88%E6%94%B9%E5%8F%98%E8%AF%BB%E6%B3%95%EF%BC%9A%E4%B8%8D%E6%8A%8A-AI-%E7%9A%84%E6%80%BB%E7%BB%93%E5%BD%93%E6%88%90%E8%87%AA%E5%B7%B1%E7%9A%84%E7%A0%94%E7%A9%B6%E7%90%86%E8%A7%A3"><span class="toc-number">2.</span> <span class="toc-text">先改变读法：不把 AI 的总结当成自己的研究理解</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#MCUNetV2%EF%BC%9A%E6%8A%8A%E2%80%9C%E6%9B%B4%E5%B0%8F%E7%9A%84%E7%BD%91%E7%BB%9C%E2%80%9D%E6%94%B9%E5%86%99%E6%88%90%E2%80%9C%E6%9B%B4%E5%B0%91%E7%9A%84%E5%90%8C%E6%97%B6%E5%AD%98%E6%B4%BB%E6%95%B0%E6%8D%AE%E2%80%9D"><span class="toc-number">3.</span> <span class="toc-text">MCUNetV2：把“更小的网络”改写成“更少的同时存活数据”</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%8E%E5%8F%82%E6%95%B0%E5%A4%A7%E5%B0%8F%E8%BD%AC%E5%90%91-activation-peak"><span class="toc-number">3.1.</span> <span class="toc-text">从参数大小转向 activation peak</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#patch-%E4%B8%8D%E6%98%AF-batch%EF%BC%8C%E4%BD%8E-SRAM-%E4%B9%9F%E4%B8%8D%E7%AD%89%E4%BA%8E%E6%9B%B4%E5%BF%AB"><span class="toc-number">3.2.</span> <span class="toc-text">patch 不是 batch，低 SRAM 也不等于更快</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%BE%E5%92%8C%E8%A1%A8%E5%BF%85%E9%A1%BB%E5%9B%9E%E7%AD%94%E4%B8%8D%E5%90%8C%E9%97%AE%E9%A2%98"><span class="toc-number">3.3.</span> <span class="toc-text">图和表必须回答不同问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%98%85%E8%AF%BB%E6%96%B9%E5%BC%8F%E4%B9%9F%E9%9C%80%E8%A6%81%E8%A2%AB%E4%BF%AE%E6%AD%A3"><span class="toc-number">3.4.</span> <span class="toc-text">阅读方式也需要被修正</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E8%AF%BE%E7%A8%8B%E4%B8%8E-NLP-%E4%BD%9C%E4%B8%9A%EF%BC%9A%E6%8A%8A%E2%80%9C%E6%8C%87%E6%A0%87%E2%80%9D%E2%80%9C%E9%A9%BB%E7%82%B9%E2%80%9D%E5%92%8C%E2%80%9C%E7%94%9F%E6%88%90%E8%B4%A8%E9%87%8F%E2%80%9D%E5%88%86%E5%BC%80"><span class="toc-number">4.</span> <span class="toc-text">优化课程与 NLP 作业：把“指标”“驻点”和“生成质量”分开</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E5%9F%BA%E7%A1%80%EF%BC%9A%E2%88%87L-0-%E4%B8%8D%E6%98%AF%E6%9C%80%E5%B0%8F%E5%80%BC%E7%9A%84%E5%90%8C%E4%B9%89%E8%AF%8D"><span class="toc-number">4.1.</span> <span class="toc-text">优化基础：∇L &#x3D; 0 不是最小值的同义词</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#NLP-%E4%BD%9C%E4%B8%9A%EF%BC%9APPL-%E4%B8%8D%E8%83%BD%E6%9B%BF%E4%BB%A3%E6%95%85%E4%BA%8B%E8%B4%A8%E9%87%8F"><span class="toc-number">4.2.</span> <span class="toc-text">NLP 作业：PPL 不能替代故事质量</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#GazeShift%EF%BC%9A%E7%AC%AC%E4%B8%80%E8%BD%AE%E8%B7%91%E9%80%9A%E5%90%8E%EF%BC%8C%E8%AF%84%E4%BC%B0%E5%8D%8F%E8%AE%AE%E5%8F%8D%E8%80%8C%E6%88%90%E4%B8%BA%E6%9C%80%E5%A4%A7%E9%97%AE%E9%A2%98"><span class="toc-number">5.</span> <span class="toc-text">GazeShift：第一轮跑通后，评估协议反而成为最大问题</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%88%E6%8A%8A%E7%8E%AF%E5%A2%83%E5%92%8C%E6%95%B0%E6%8D%AE%E6%B5%81%E8%B7%91%E9%80%9A"><span class="toc-number">5.1.</span> <span class="toc-text">先把环境和数据流跑通</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9D%E6%AD%A5%E5%AD%90%E9%9B%86%E8%AE%AD%E7%BB%83%E7%9C%9F%E6%AD%A3%E5%BE%97%E5%88%B0%E4%BA%86%E4%BB%80%E4%B9%88"><span class="toc-number">5.2.</span> <span class="toc-text">初步子集训练真正得到了什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-2-8660%C2%B0-%E4%B8%8D%E8%83%BD%E5%92%8C%E8%AE%BA%E6%96%87-1-84%C2%B0-%E7%9B%B4%E6%8E%A5%E6%AF%94%E8%BE%83"><span class="toc-number">5.3.</span> <span class="toc-text">为什么 2.8660° 不能和论文 1.84° 直接比较</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%87%8D%E6%96%B0%E5%AE%89%E6%8E%92-D2L%E3%80%81%E8%AE%BA%E6%96%87%E4%B8%8E%E5%AE%9E%E9%AA%8C%E7%9A%84%E6%AF%94%E4%BE%8B"><span class="toc-number">6.</span> <span class="toc-text">重新安排 D2L、论文与实验的比例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E5%91%A8%E6%B2%A1%E6%9C%89%E5%8F%91%E7%94%9F%E7%9A%84%E4%BA%8B%EF%BC%8C%E4%BB%A5%E5%8F%8A%E4%B8%8B%E4%B8%80%E6%AD%A5"><span class="toc-number">7.</span> <span class="toc-text">本周没有发生的事，以及下一步</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/bed9f7f7.html" title="2026 年 9 月学习记录（9 月 15 日—21 日）：从 GazeShift 正式训练到 StreamNet">2026 年 9 月学习记录（9 月 15 日—21 日）：从 GazeShift 正式训练到 StreamNet</a><time datetime="2026-09-20T16:00:00.000Z" title="发表于 2026-09-21 00:00:00">2026-09-21</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/82e075b6.html" title="2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现">2026 年 9 月学习记录（9 月 8 日—14 日）：从 MCUNetV2 到 GazeShift 复现</a><time datetime="2026-09-13T16:00:00.000Z" title="发表于 2026-09-14 00:00:00">2026-09-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/f0b5a411.html" title="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena"><img src="https://204180371.xyz/PicGo/D8446F4B4CEBAC87094EE378A7CAA098.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena"/></a><div class="content"><a class="title" href="/posts/f0b5a411.html" title="2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena">2026 年 9 月第 1 周科研周报：从 GazeShift 到 Tensor Arena</a><time datetime="2026-09-06T16:00:00.000Z" title="发表于 2026-09-07 00:00:00">2026-09-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/c2a1f08a.html" title="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2"><img src="https://204180371.xyz/PicGo/01E0D886082DF83F6E451D93B10C1007.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2"/></a><div class="content"><a class="title" href="/posts/c2a1f08a.html" title="2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2">2026 年第 35 周学习周报：从 MediaPipe Hands 到 HaGRIDv2</a><time datetime="2026-08-30T15:30:00.000Z" title="发表于 2026-08-30 23:30:00">2026-08-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/fad4b066.html" title="D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录"><img src="https://204180371.xyz/PicGo/ECDEAE041ACF47975C6748591199040E.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录"/></a><div class="content"><a class="title" href="/posts/fad4b066.html" title="D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录">D2L-学习日志：从 Modern CNN 到 RNN：两天跨越两代神经网络范式的学习记录</a><time datetime="2026-08-22T12:02:00.000Z" title="发表于 2026-08-22 20:02:00">2026-08-22</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2025 - 2026 By 祝炩烟</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><div class="js-pjax"><script>(() => {
+  const loadMathjax = () => {
+    if (!window.MathJax) {
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          tags: 'none',
+        },
+        chtml: {
+          scale: 1.1
+        },
+        options: {
+          enableMenu: true,
+          renderActions: {
+            findScript: [10, doc => {
+              for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
+                const display = !!node.type.match(/; *mode=display/)
+                const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display)
+                const text = document.createTextNode('')
+                node.parentNode.replaceChild(text, node)
+                math.start = {node: text, delim: '', n: 0}
+                math.end = {node: text, delim: '', n: 0}
+                doc.math.push(math)
+              }
+            }, '']
+          }
+        }
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/mathjax/es5/tex-mml-chtml.min.js'
+      script.id = 'MathJax-script'
+      script.async = true
+      document.head.appendChild(script)
+    } else {
+      MathJax.startup.document.state(0)
+      MathJax.texReset()
+      MathJax.typesetPromise()
+    }
+  }
+
+  btf.addGlobalFn('encrypt', loadMathjax, 'mathjax')
+  window.pjax ? loadMathjax() : window.addEventListener('load', loadMathjax)
+})()</script></div><div class="aplayer no-destroy" data-id="8152976493" data-server="netease" data-type="playlist"
+data-order="list" data-fixed="true" data-preload="auto" data-autoplay="false" data-mutex="true"></div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/aplayer/dist/APlayer.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/metingjs/dist/Meting.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索………" type="text"/></div></div><hr/><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></div><!-- hexo injector body_end start --><script data-pjax>
+  function butterfly_footer_beautify_injector_config(){
+    var parent_div_git = document.getElementById('footer-wrap');
+    var item_html = '<div id="workboard"></div><p id="ghbdages"><a class="github-badge" target="_blank" href="https://hexo.io/" style="margin-inline:5px" data-title="博客框架为Hexo_v5.4.0" title=""><img src="https://img.shields.io/badge/Frame-Hexo-blue?style=flat&amp;logo=hexo" alt=""/></a><a class="github-badge" target="_blank" href="https://butterfly.js.org/" style="margin-inline:5px" data-title="主题版本Butterfly_v4.2.2" title=""><img src="https://img.shields.io/badge/Theme-Butterfly-6513df?style=flat&amp;logo=bitdefender" alt=""/></a><a class="github-badge" target="_blank" href="https://www.jsdelivr.com/" style="margin-inline:5px" data-title="本站使用JsDelivr为静态资源提供CDN加速" title=""><img src="https://img.shields.io/badge/CDN-jsDelivr-orange?style=flat&amp;logo=jsDelivr" alt=""/></a><a class="github-badge" target="_blank" href="https://github.com/" style="margin-inline:5px" data-title="本站项目由Github托管" title=""><img src="https://img.shields.io/badge/Source-Github-d021d6?style=flat&amp;logo=GitHub" alt=""/></a><a class="github-badge" target="_blank" href="http://creativecommons.org/licenses/by-nc-sa/4.0/" style="margin-inline:5px" data-title="本站采用知识共享署名-非商业性使用-相同方式共享4.0国际许可协议进行许可" title=""><img src="https://img.shields.io/badge/Copyright-BY--NC--SA%204.0-d42328?style=flat&amp;logo=Claris" alt=""/></a></p>';
+    console.log('已挂载butterfly_footer_beautify')
+    parent_div_git.insertAdjacentHTML("beforeend",item_html)
+    }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var flag = 0;
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_footer_beautify_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_footer_beautify_injector_config();
+  }
+  </script><script async src="/js/runtime/runtime.js"></script><script data-pjax>
+  function butterfly_clock_anzhiyu_injector_config(){
+    var parent_div_git = document.getElementsByClassName('sticky_layout')[0];
+    var item_html = '<div class="card-widget card-clock"><div class="card-glass"><div class="card-background"><div class="card-content"><div id="hexo_electric_clock"><img class="entered loading" id="card-clock-loading" src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/loading.gif" style="height: 120px; width: 100%;" data-ll-status="loading"/></div></div></div></div></div>';
+    console.log('已挂载butterfly_clock_anzhiyu')
+    if(parent_div_git) {
+      parent_div_git.insertAdjacentHTML("afterbegin",item_html)
+    }
+  }
+  var elist = 'null'.split(',');
+  var cpage = location.pathname;
+  var epage = 'all';
+  var qweather_key = 'f7394b7c1a5446feb791aedeecba4ecc';
+  var gaud_map_key = '66a3f75fe3a288fca105be2131c0ea6e';
+  var baidu_ak_key = 'undefined';
+  var flag = 0;
+  var clock_rectangle = '112.6534116,27.96920845';
+  var clock_default_rectangle_enable = 'false';
+
+  for (var i=0;i<elist.length;i++){
+    if (cpage.includes(elist[i])){
+      flag++;
+    }
+  }
+
+  if ((epage ==='all')&&(flag == 0)){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  else if (epage === cpage){
+    butterfly_clock_anzhiyu_injector_config();
+  }
+  </script><script src="https://widget.qweather.net/simple/static/js/he-simple-common.js?v=2.0"></script><script data-pjax src="https://cdn.cbd.int/hexo-butterfly-clock-anzhiyu@1.1.6/lib/clock.min.js"></script><script async src="/js/ali_font.js"></script><div class="js-pjax"><script async="async">var arr = document.getElementsByClassName('recent-post-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '30');
+    arr[i].setAttribute('data-wow-iteration', '1');
+  }</script><script async="async">var arr = document.getElementsByClassName('card-widget');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__zoomIn');
+    arr[i].setAttribute('data-wow-duration', '');
+    arr[i].setAttribute('data-wow-delay', '200ms');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('flink-list-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('article-sort-item');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__slideInRight');
+    arr[i].setAttribute('data-wow-duration', '1.5s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__flipInY');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script><script async="async">var arr = document.getElementsByClassName('site-card');
+for(var i = 0;i<arr.length;i++){
+    arr[i].classList.add('wow');
+    arr[i].classList.add('animate__animated');
+    arr[i].setAttribute('data-wow-duration', '3s');
+    arr[i].setAttribute('data-wow-delay', '');
+    arr[i].setAttribute('data-wow-offset', '');
+    arr[i].setAttribute('data-wow-iteration', '');
+  }</script></div><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow.min.js"></script><script defer src="https://cdn.cbd.int/hexo-butterfly-wowjs/lib/wow_init.js"></script><!-- hexo injector body_end end --><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/koharu.model.json"},"display":{"position":"left","width":150,"height":850},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/"});</script></body></html>
