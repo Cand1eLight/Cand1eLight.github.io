@@ -9,6 +9,12 @@
 <p>后面的设计围绕这个核心展开：逐 patch 执行降低同时驻留的激活，却会因为 patch 输入重叠而重复计算；感受野重分配用来缓解这项代价；架构与调度的联合搜索用来寻找满足硬件预算的组合。它不是“发明了一个全新的 CNN”，也不能简化成“只做了分块、其他都不重要”。</p>
 <p>我读这篇论文时真正卡住的问题包括：前几层为什么特别占内存？patch 为什么必须重叠？感受野是卷积核大小吗？Figure 4 里的 MB6、MB1 是什么？NAS 是不是 MCU 每次收到图像后才运行？Table 里的 MACs、SRAM、latency 和 accuracy 又分别能证明什么？这篇文章按这些问题展开，尽量把论文主张、我的理解、教学例子和实验数字分开。</p>
 <p>论文正文和补充材料以 <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Paper.pdf">NeurIPS 2021 正式论文 PDF</a> 与<a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Supplemental.pdf">官方补充材料</a> 为准。文中的表格是我根据论文数字重新排成 Markdown，不是开发板实测记录。</p>
+<h2 id="论文信息"><a href="#论文信息" class="headerlink" title="论文信息"></a>论文信息</h2><ul>
+<li><strong>作者：</strong> Ji Lin、Wei-Ming Chen、Han Cai、Chuang Gan、Song Han</li>
+<li><strong>版本：</strong> NeurIPS 2021 正式论文；arXiv 预印本 arXiv:2110.15352（2021）。</li>
+<li><strong>原文：</strong> <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper/2021/hash/1371bccec2447b5aa6d96d2a540fb401-Abstract.html">NeurIPS 2021 论文记录</a> · <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Paper.pdf">论文 PDF</a> · <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Supplemental.pdf">补充材料</a> · <a target="_blank" rel="noopener" href="https://arxiv.org/abs/2110.15352">arXiv 页面</a></li>
+<li><strong>代码与项目：</strong> <a target="_blank" rel="noopener" href="https://hanlab.mit.edu/projects/mcunetv2">MCUNetV2 项目页</a> · <a target="_blank" rel="noopener" href="https://github.com/mit-han-lab/mcunet">MIT HAN Lab 官方代码库</a></li>
+</ul>
 <h2 id="先把论文要解决的瓶颈说清楚"><a href="#先把论文要解决的瓶颈说清楚" class="headerlink" title="先把论文要解决的瓶颈说清楚"></a>先把论文要解决的瓶颈说清楚</h2><p>MCU 上的模型部署不能只看模型文件有多大。至少要分开看四类东西：</p>
 <div class="table-container">
 <table>

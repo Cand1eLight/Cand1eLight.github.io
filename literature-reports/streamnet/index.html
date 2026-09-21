@@ -1,0 +1,310 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light"><meta name="description" content="围绕 StreamNet 的 1D/2D streaming buffer、padding bypass 与部署前调优，梳理论文如何减少 patch-based 推理中的重复计算，并区分 SRAM、MAC 与时延实验口径。"><title>我以为 StreamNet 把卷积乘积存进 SRAM：后来才明白它复用的是什么 | 文献阅读报告</title><link rel="stylesheet" href="/literature-reports/assets/literature-reports.css"><script>window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body class="literature-portal"><div class="literature-pattern" aria-hidden="true"></div><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>我以为 StreamNet 把卷积乘积存进 SRAM：后来才明白它复用的是什么</h1><p class="report-summary">围绕 StreamNet 的 1D/2D streaming buffer、padding bypass 与部署前调优，梳理论文如何减少 patch-based 推理中的重复计算，并区分 SRAM、MAC 与时延实验口径。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-21T04:00:00.000Z">2026-09-21</time></span><span><strong>论文</strong><em>StreamNet: Memory-Efficient Streaming Tiny Deep Learning Inference on the Microcontroller</em></span><span><strong>领域</strong><em>TinyML · Patch-based Inference · Streaming Buffer</em></span></div></header><article class="literature-article"><p>读 StreamNet 之前，我已经读完了 MCUNetV2，所以一开始觉得这篇论文的主线很好概括：MCUNetV2 把前面几层改成 per-patch 推理，以降低峰值 SRAM；相邻 patch 有重叠，前一个 patch 丢掉的中间结果，后一个 patch 可能又要重算；StreamNet 就把这部分结果留在 SRAM 里。</p>
+<p>这条主线是对的，但它离真正说清楚“StreamNet 怎么运行”还差一层。我后来反复追问：一个 3×3 卷积窗口不是只产生一个输出吗？StreamNet 究竟缓存的是哪一个值？图里的 patch 是缓存区，还是当前计算区域？Figure 5 的蓝色是不是 SRAM 里上一个 patch 保存下来的东西？灰色 padding 到底哪些可以跳过？</p>
+<p>我甚至一度把“一个卷积输出位置”说成了“卷积核与输入相乘的那一格”，又把它和 3×3 窗口里九个乘法结果混在了一起。真正读通以后，我才把几个对象分开：<strong>StreamNet 缓存的是已经完成乘加、可以直接作为中间激活使用的输出值；不是九个乘积，不是部分和，也不是整个 patch。</strong></p>
+<p>这篇博客按我真正理解它的顺序展开：先接回 MCUNetV2，再追一组具体卷积计算，然后解释 1D/2D buffer、padding bypass、部署流程和实验口径。正文与补充材料以 <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/file/7526508f11bbe0a123af62b9dab1fbe1-Paper-Conference.pdf">NeurIPS 2023 论文</a> 和<a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/file/7526508f11bbe0a123af62b9dab1fbe1-Supplemental-Conference.pdf">补充材料</a>为准。图是原论文 Figure 1–7 与补充材料图的局部裁剪；表格则直接用 Markdown 重排，不是表格截图。</p>
+<h2 id="论文信息"><a href="#论文信息" class="headerlink" title="论文信息"></a>论文信息</h2><ul>
+<li><strong>作者：</strong> Hong-Sheng Zheng、Yu-Yuan Liu、Chen-Fong Hsu、Tsung Tai Yeh（按 NeurIPS 官方题录页；PDF 首页显示的第二、三作者顺序不同）</li>
+<li><strong>版本：</strong> NeurIPS 2023 主会正式论文。</li>
+<li><strong>原文：</strong> <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/hash/7526508f11bbe0a123af62b9dab1fbe1-Abstract-Conference.html">NeurIPS 2023 论文记录与摘要</a> · <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/file/7526508f11bbe0a123af62b9dab1fbe1-Paper-Conference.pdf">论文 PDF</a> · <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/file/7526508f11bbe0a123af62b9dab1fbe1-Supplemental-Conference.pdf">官方补充材料</a></li>
+<li><strong>代码与数据：</strong> NeurIPS 记录页未附独立的 StreamNet 代码/数据仓库；论文实验所用的 MCUNetV2 模型库见 <a target="_blank" rel="noopener" href="https://github.com/mit-han-lab/mcunet">MIT HAN Lab 官方仓库</a>（该仓库是基线模型资源，不是 StreamNet 实现）。</li>
+</ul>
+<h2 id="先把-StreamNet-和-MCUNetV2-的关系说准"><a href="#先把-StreamNet-和-MCUNetV2-的关系说准" class="headerlink" title="先把 StreamNet 和 MCUNetV2 的关系说准"></a>先把 StreamNet 和 MCUNetV2 的关系说准</h2><p>MCUNetV2 改变的是执行顺序：把原本按整层处理的高分辨率前段，改成跨层逐 patch 计算。这样不必同时把整张大特征图放在 SRAM 里，代价是相邻 patch 的感受野依赖重叠，部分中间结果会重复生成。</p>
+<p>StreamNet 建立在这条思路上，再追问一个问题：<strong>既然 patch 之间有些中间输出会重复，能不能把后一个 patch 还会用到的输出留住？</strong>它用 stream buffer 保存这些已完成的输出子区域，并设计 1D、2D 两种复用方式；另外再用 output-padding bypass 跳过一类确定只会是零的输出位置，最后通过部署前的参数选择，把内存和计算放在一起权衡。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>MCUNetV2</th>
+<th>StreamNet</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>共同出发点</td>
+<td>在网络前段使用 per-patch 执行，降低峰值 SRAM</td>
+<td>沿用 patch-based inference</td>
+</tr>
+<tr>
+<td>主要问题</td>
+<td>patch 之间的重叠带来重复计算</td>
+<td>减少这些重复计算，同时控制新增 buffer 的 SRAM</td>
+</tr>
+<tr>
+<td>核心机制</td>
+<td>以重算换取较低的同时驻留内存</td>
+<td>保存未来 patch 会复用的中间输出激活</td>
+</tr>
+<tr>
+<td>额外设计</td>
+<td>patch 参数与执行切分</td>
+<td>1D/2D streaming、padding bypass、部署前参数选择</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>我后来也把两个容易混在一起的词分开记：<strong>patch-wise</strong>说的是“把计算按 patch 分块执行”；<strong>streaming</strong>说的是“处理下一个 patch 时，按需保留并复用前一个 patch 已经算好的结果”。所以 StreamNet 仍然是 patch-wise inference，只是在 patch 之间加入 streaming reuse；stream buffer 是复用载体，不是 patch 本身。</p>
+<p>所以 StreamNet 的确承接并补充了 MCUNetV2，但它不能被概括成“把 MCUNetV2 重算的东西全塞进 SRAM”。缓存本身也占 SRAM，而且不同方向、不同层级的复用要用不同大小的 buffer。论文的 Related Work 也明确把已有 sliding-window 和 streaming 工作作为背景；它的定位是面向 MCU patch inference 的 1D/2D 混合 streaming、padding bypass 和约束下的自动调优，不是第一次提出缓存中间结果。</p>
+<h2 id="为什么-patch-能救-SRAM，却又会拖慢推理"><a href="#为什么-patch-能救-SRAM，却又会拖慢推理" class="headerlink" title="为什么 patch 能救 SRAM，却又会拖慢推理"></a>为什么 patch 能救 SRAM，却又会拖慢推理</h2><p>在 layer-wise inference 里，一层通常先读取整张输入特征图，再生成整张输出特征图。内存规划器可以复用生命周期已经结束的张量地址，但如果某一层的输入、输出和临时工作区同时太大，地址复用也不能把这一层的整张张量变小。</p>
+<p>Per-patch inference 则把空间区域分块，每次只让当前 patch 参与前段计算。它降低了同时驻留的数据量；但卷积输出依赖邻域输入，为了不丢掉 patch 边界的上下文，相邻 patch 的依赖区域会重叠。如果上一个 patch 的中间结果已经丢弃，下一个 patch 就得重新算。</p>
+<blockquote>
+<p><strong>插图位置：原论文 Figure 1，PDF 第 2 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure1_comparison.png" alt="论文 Figure 1：layer-wise 与 patch-based 的峰值内存和 MAC 对比"></p>
+<ul>
+<li>图 1 左边比较逐层与逐 patch 的内存，红色虚线是论文示例中的 128 KB SRAM 限制，图中标出的逐层峰值约为 242 KB。右边比较每层的 MAC，第一层标注约 33×。这 33× 是<strong>该例第一层的 per-patch 与 per-layer MAC 比值</strong>，不是整个网络的加速比，也不是 StreamNet 最终一定能消掉 33 倍计算。</li>
+</ul>
+<p>这张图先把论文的问题立起来：patch inference 的内存收益确实很明显，但在 patch 很细时，重叠依赖会让 MAC 快速增加。128 KB 是图里的约束示例，不是说所有 MCU 都只有 128 KB SRAM；图也没有提供整机功耗、端到端能耗或实际板端时延。</p>
+<h2 id="Figure-2：把“重复计算”算出来"><a href="#Figure-2：把“重复计算”算出来" class="headerlink" title="Figure 2：把“重复计算”算出来"></a>Figure 2：把“重复计算”算出来</h2><p>我真正看懂 stream buffer，是从 Figure 2 的小例子开始的。</p>
+<p>假设输入是 6×6，卷积核是 3×3，stride 为 1，不考虑通道维度。普通逐层卷积的输出边长是：</p>
+<script type="math/tex; mode=display">
+6 - 3 + 1 = 4</script><p>因此输出是 4×4，共 16 个输出位置。每个位置要用 3×3 卷积核做 9 次乘加，整层需要：</p>
+<script type="math/tex; mode=display">
+16 \times 9 = 144\ \text{MACs}</script><p>现在把这个输入拆成四个相互重叠的 5×5 patch。每个 patch 卷积后产生 3×3 输出，也就是每个 patch 算 9 个输出位置：</p>
+<script type="math/tex; mode=display">
+4 \times 9 \times 9 = 324\ \text{MACs}</script><p>最后需要的有效输出仍然只有 4×4，但 patch-based 的局部结果里，有些中间输出位置被几个相邻 patch 重复生成了。图中重叠区域的数字表示相应位置被重复计算的次数。这里重复的是卷积产生的输出激活，不只是“把同一批原始输入又读了一遍”。</p>
+<blockquote>
+<p><strong>插图位置：原论文 Figure 2，PDF 第 3 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure2_patch_overlap.png" alt="论文 Figure 2：四个重叠 patch 如何重复计算输出位置"></p>
+<p>这个例子里 patch-based inference 要 324 MACs，而 layer-wise 只要 144 MACs，是 2.25 倍。它说明的是一个计算玩具例子中的重复，不要把 2.25×直接当作论文网络的倍率；Figure 1 里第一层的 33×又是另一个具体模型、具体层的对比。</p>
+<h2 id="我卡住的那个卷积问题：一个输出值和一张输出-tile-不是一回事"><a href="#我卡住的那个卷积问题：一个输出值和一张输出-tile-不是一回事" class="headerlink" title="我卡住的那个卷积问题：一个输出值和一张输出 tile 不是一回事"></a>我卡住的那个卷积问题：一个输出值和一张输出 tile 不是一回事</h2><p>我当时问过：“第一次计算的结果不就是一个 Y0 吗？3×3 的卷积输出一个数啊，这怎么把计算的结果保存然后后面调用？”</p>
+<p>这句话里其实有两个尺度：</p>
+<ol>
+<li><strong>一个卷积窗口</strong>经过 3×3 卷积核，会产生一个输出激活。单通道时，这个输出来自 9 组输入与权重的乘法，再把结果累加起来。</li>
+<li><strong>卷积核在整个 patch 上滑动</strong>，会产生一整块输出 tile。比如 5×5 输入 patch 经 3×3、stride 1 的卷积，输出 tile 是 3×3，里面有 9 个已经算完的输出激活。</li>
+</ol>
+<p>StreamNet 缓存的是第二层描述中的某些<strong>已完成激活格子</strong>。它不会把一个输出位置内部那 9 个乘积拆开存，也不缓存尚未完成的部分和。下一块 patch 如果还需要其中某个输出激活，就直接读取这个完整结果，从而跳过重新生成它所需的整组 MACs。</p>
+<p>我后来才发现，我把“卷积核和输入相乘的那一格”用来指代输出激活，但听起来像是在说一个独立乘积。把“单窗口输出一个值”和“滑过 patch 后得到一块输出”区分开以后，buffer 保存什么就清楚多了。</p>
+<h2 id="Figure-3：1D-streaming-只沿一个方向复用"><a href="#Figure-3：1D-streaming-只沿一个方向复用" class="headerlink" title="Figure 3：1D streaming 只沿一个方向复用"></a>Figure 3：1D streaming 只沿一个方向复用</h2><p>普通 patch-based inference 算完 Patch 0 后，可以把所有局部中间结果释放。Patch 1 开始时，遇到和 Patch 0 重叠的部分，就再算一次。</p>
+<p>StreamNet-1D 改变了这个生命周期：Patch 0 算出的 3×3 中间输出 tile 中，有一条区域会被下一个 patch 再次用到，于是它暂时放进 stream buffer。处理 Patch 1 时，只计算新的那一条输出区域，再和 buffer 中保留的部分拼成下一层需要的 tile。</p>
+<blockquote>
+<p><strong>插图位置：原论文 Figure 3，PDF 第 4 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure3_streaming_1d.png" alt="论文 Figure 3：StreamNet-1D 的执行、缓存与拼接"></p>
+<p>图里 (a) 展开了 StreamNet-1D 的步骤，(b) 是普通 patch-based 对照，(c) 显示重复次数减少后的输出。图中的 “computed” 是已经完成的输出格子，“computing” 是当前正在生成的格子；红色路径和 stream buffer 展示哪些结果跨 patch 留下来，再通过 inplace concat 形成下一块所需的输入 tile。</p>
+<p>论文这个四 patch 例子是两行、每行两个 patch。每一行的第一个 patch 生成 3×3，也就是 9 个输出；同一行的第二个 patch 复用横向重叠部分，只新增 3 个输出。因此每行生成 9+3=12 个不同输出，需要 12×9=108 MACs；两行合计 216 MACs。换到第二行时，1D buffer 没有消除纵向重复，所以总数仍高于完整 layer-wise 的 144 MACs。和普通 patch 的 324 相比，1D 降低了三分之一的总 MACs。</p>
+<p>论文说它减少了约 60% 的 <strong>MAC overhead</strong>。这里的 overhead 是超过 layer-wise 144 MACs 的那部分：普通 patch 的额外开销是 324−144=180，1D 的额外开销是 216−144=72；180 降到 72，才是约 60% 的 overhead reduction。这个“额外开销下降 60%”不能说成“总 MACs 下降 60%”。</p>
+<p>1D 只沿一个选定的空间方向保留重叠结果，另一个方向的重复计算仍可能存在。这就是 2D streaming 还要继续解决的问题。</p>
+<h2 id="Figure-4：2D-把横向、纵向和角落重叠都接起来"><a href="#Figure-4：2D-把横向、纵向和角落重叠都接起来" class="headerlink" title="Figure 4：2D 把横向、纵向和角落重叠都接起来"></a>Figure 4：2D 把横向、纵向和角落重叠都接起来</h2><p>StreamNet-2D 把 patch 的处理顺序沿 X、Y 两个空间方向安排，并增加角落用的 XY buffer。Figure 4 中的 2×3 X buffer、3×2 Y buffer 和 2×1 XY buffer，一共保存 14 个中间激活值。它们分别覆盖水平方向、垂直方向和两个方向交叉的角落。</p>
+<blockquote>
+<p><strong>插图位置：原论文 Figure 4，PDF 第 4 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure4_streaming_2d.png" alt="论文 Figure 4：StreamNet-2D 的 X、Y 和 XY stream buffer"></p>
+<p>这张图先在左侧列出四个 patch，再把它们送进 CONV0。Patch 0 完成后，横向和纵向未来会用到的部分分别写入 X、Y buffer；Patch 1 复用已有条带，并把还会被 Patch 3 用到的角落存进 XY buffer；Patch 2 再复用 X 方向结果；最后 Patch 3 把 Y 和 XY 中保留的值拼进当前 tile。</p>
+<p>这个玩具例子里，四个 patch 分别新增 9、3、3、1 个输出位置，一共 16 个，刚好等于完整 4×4 输出所需的 16 个位置。因此总 MACs 回到 16×9=144，与 layer-wise 相同。这里展示的是 Figure 4 这个简单结构中的理想复用，不表示完整网络里所有 StreamNet-2D 配置都和逐层执行具有相同 MACs。</p>
+<p>代价也在图里：2D 的 buffer 比 1D 大。<strong>1D 少存一点、仍保留另一方向重算；2D 多占一些 SRAM、换取更多方向的复用。</strong>所以 StreamNet 的选择不是“buffer 越大越好”，而是在 MCU 内存限制下选择能容纳的复用等级。</p>
+<h2 id="Figure-5：patch、tensor、stream-buffer、padding-是四个不同对象"><a href="#Figure-5：patch、tensor、stream-buffer、padding-是四个不同对象" class="headerlink" title="Figure 5：patch、tensor、stream buffer、padding 是四个不同对象"></a>Figure 5：patch、tensor、stream buffer、padding 是四个不同对象</h2><p>这是我最容易把图看混的一张。为了不再把颜色和机制串错，我现在会先固定下面四个名词：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>名词</th>
+<th>在论文里的意思</th>
+<th>Figure 5 里是否直接画成一种颜色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tensor</td>
+<td>一层完整特征图的逻辑坐标区域</td>
+<td>橙色表示有效 tensor area</td>
+</tr>
+<tr>
+<td>patch / tile</td>
+<td>当前这一次局部跨层计算覆盖的区域</td>
+<td>蓝色斜线表示 patch area</td>
+</tr>
+<tr>
+<td>stream buffer</td>
+<td>前一个 patch 已算完、后一个 patch 还会用到的输出子区域</td>
+<td>Figure 5 没有画它</td>
+</tr>
+<tr>
+<td>padding</td>
+<td>有效 tensor 坐标之外按定义补出的零区域</td>
+<td>灰色表示 padding area</td>
+</tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><strong>插图位置：原论文 Figure 5，PDF 第 6 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure5_output_padding_bypass.png" alt="论文 Figure 5：patch 经过多层卷积后产生的 output padding bypass 区域"></p>
+<p>图例逐项看：</p>
+<ul>
+<li>绿色长条是卷积算子 CONV0、CONV1、CONV2；</li>
+<li>橙色是该层真实有效的 tensor 坐标范围；</li>
+<li>蓝色斜线是当前 patch 覆盖的范围；</li>
+<li>灰色是有效 tensor 范围之外的 padding；</li>
+<li>红色虚线框是 StreamNet 可跳过的 output-padding 区域。</li>
+</ul>
+<p>所以蓝色<strong>不是</strong>“上一个 patch 存进 SRAM 的区域”。蓝色只回答“这一次局部计算覆盖哪里”；红色虚线也不是 stream buffer，它表示某些输出格子已知应该是 padding 零，可以不运行卷积而直接写零。</p>
+<p>A、B、C、D 画的是一条局部依赖链：7×7 → 5×5 → 3×3 → 1×1。对应的是三个 3×3、stride 1 的卷积。可以从最终 D 的一个输出位置往回看：需要 C 的 3×3，再需要 B 的 5×5，最后需要 A 的 7×7；也可以正向看，每过一层 3×3 卷积，当前有效 patch 边长减 2。这里不是 4×4→3×3→2×2，也不是 2×2 卷积。</p>
+<p>我一开始把“遇到 padding 就不用算”说得太宽了。正确区分是：</p>
+<ul>
+<li><strong>合法输出位置</strong>即使卷积窗口碰到了输入 padding 的零，仍然是 tensor 的有效输出。它的值可能依赖真实输入和这些零，必须按该层运算得到。</li>
+<li><strong>输出坐标本身就在真实 tensor 之外</strong>时，它属于 output padding，结果按定义就是零。StreamNet 可以直接写零，跳过生成这个输出所需的卷积 MACs。</li>
+<li>灰色但不在当前蓝色 patch 覆盖范围里的区域，只说明这次不访问它；灰色与蓝色相交的输入 padding，也不能因此把相邻的合法输出一起跳过。</li>
+</ul>
+<p>Figure 5 取的是靠近边界的一个 patch，所以 padding 看起来很多；它用来说明哪些输出位置能够 bypass，不代表普通 patch 的平均 padding 比例。还有一个容易读错的地方：正文有一句把 Tensor B 的 5×5 patch 输出再次写成 Tensor B 的 3×3 patch；结合 Figure 5 的 A→B→C→D 和前后文，实际链路应是 B 的 5×5 经过卷积产生 C 的 3×3。</p>
+<p>把两种优化并排放，就能看出它们互不替代：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>处理的是什么</th>
+<th>需要额外缓存吗</th>
+<th>直接减少什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stream buffer</td>
+<td>真实重叠区域中，后续 patch 仍需要的已完成激活</td>
+<td>需要，占 SRAM</td>
+<td>跨 patch 重复生成的 MACs</td>
+</tr>
+<tr>
+<td>Output-padding bypass</td>
+<td>输出 tensor 坐标域之外、应为零的格子</td>
+<td>不需要 stream buffer</td>
+<td>为这些零输出执行的卷积 MACs</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>一个是“把以后要用的真实结果留下来”，另一个是“确认这个输出根本不需要卷积，直接写零”。Figure 5 展示后者，不是前者。</p>
+<h2 id="Figure-6：搜索和代码生成在部署前，MCU-不会每张图重新调参"><a href="#Figure-6：搜索和代码生成在部署前，MCU-不会每张图重新调参" class="headerlink" title="Figure 6：搜索和代码生成在部署前，MCU 不会每张图重新调参"></a>Figure 6：搜索和代码生成在部署前，MCU 不会每张图重新调参</h2><p>我也问过，MCU 每次推理是不是会按照某个文件重新选内存、再决定走 1D 还是 2D？Figure 6 把这一点分得很清楚：模型参数和调度先在部署前确定，后端生成固定的 C/C++ 代码；设备收到输入以后按生成的执行顺序运行。</p>
+<blockquote>
+<p><strong>插图位置：原论文 Figure 6，PDF 第 7 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure6_system_architecture.png" alt="论文 Figure 6：StreamNet 从模型和参数到 MCU 固定代码的系统流程"></p>
+<p>前端输入包括 .tflite 模型、patch 参数和 stream 参数。它生成 patched layers，安排静态 arena 的张量内存，并确定 stream buffer；后端再组合 StreamNet 的代码生成、TinyEngine kernels、CMSIS-NN 以及 bypass-padding kernels，输出 .h/.c 文件，最后经 Mbed CLI 部署到 ARM Cortex-M7。</p>
+<p>图中蓝色表示 StreamNet 新增或修改的部分，绿色表示未修改的部分。它画的是系统组件和代码生成数据流，不是 MCU 上每张图的动态搜索流程。论文补充材料也说明 StreamNet/MCUNetV2 用代码生成器代替 TFLM 式解释器路径，生成代码再由目标 C/C++ 编译器编译优化。</p>
+<p>参数里，<strong>n_patch</strong> 控制 patch 划分配置，<strong>split_idx</strong> 决定网络中哪些层采用 patch-wise、在哪里切回 layer-wise；<strong>stream_x_level</strong> 和 <strong>stream_y_level</strong> 决定在哪些层、哪些方向使用 streaming。作者在部署前枚举候选配置，先过滤 SRAM 超预算项，再根据 MAC 数和 Pareto frontier 选择方案。它不是每次 MCU 推理时在线跑 NAS，也不是重新训练网络。</p>
+<p>这里我还记录了一个论文表达上的小缝隙：正文说会考察 stream_x_level 和 stream_y_level，但 Algorithm 1 伪代码只显式循环 stream_x_level，并把 stream_y_level 写成最大值。单靠这段伪代码不能完全复原 x/y 搜索空间；在没有实现代码核对前，我不会把它补成论文没有写清楚的细节。</p>
+<h2 id="实验里的几张表分别在回答什么"><a href="#实验里的几张表分别在回答什么" class="headerlink" title="实验里的几张表分别在回答什么"></a>实验里的几张表分别在回答什么</h2><p>论文在 10 个 MCUNetV2 model-zoo 的 INT8 模型上评估，目标设备是 STM32F767ZI，搭载 216 MHz Cortex-M7、512 KB SRAM 和 2 MB Flash。论文结果不是在我可能使用的其他 MCU、NPU 或 A55+M33 平台上测出的。</p>
+<h3 id="Table-1：近似等-SRAM-下的系统比较"><a href="#Table-1：近似等-SRAM-下的系统比较" class="headerlink" title="Table 1：近似等 SRAM 下的系统比较"></a>Table 1：近似等 SRAM 下的系统比较</h3><p>Table 1 先给 StreamNet-2D 配置，再扫描 MCUNetV2 的 n_patch 和 split_idx，挑 SRAM 用量最接近的配置。因此两边参数不同是有意的，但它回答的是“内存近似相同时系统表现如何”，不是“同一组 patch 参数下 stream buffer 单独贡献多少”，也没有证明 MCUNetV2 一侧挑到了同 SRAM 邻域内的最低延迟配置。</p>
+<p>我最初把这两组参数理解成“两边各自都选了速度最优解”。核对原文后需要收紧：作者明确描述的是为 StreamNet-2D 找 SRAM 最接近的 MCUNetV2 参数，没说还在这组近似内存候选中再选最快的一组。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>模型/统计</th>
+<th>StreamNet-2D 参数 (n_patch, split_idx)</th>
+<th style="text-align:right">StreamNet-2D SRAM</th>
+<th>MCUNetV2 参数</th>
+<th style="text-align:right">MCUNetV2 SRAM</th>
+<th style="text-align:right">MAC 加速比</th>
+<th style="text-align:right">延迟加速比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MI3</td>
+<td>(22, 21)</td>
+<td style="text-align:right">208 KB</td>
+<td>(11, 32)</td>
+<td style="text-align:right">215 KB</td>
+<td style="text-align:right">33.89×</td>
+<td style="text-align:right">30.35×</td>
+</tr>
+<tr>
+<td>10 个模型 GMEAN</td>
+<td>—</td>
+<td style="text-align:right">—</td>
+<td>—</td>
+<td style="text-align:right">—</td>
+<td style="text-align:right">5.33×</td>
+<td style="text-align:right">5.11×</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>MI3 这一行正好回答我之前的问题：为什么 MAC 加速 33.89×，延迟只有 30.35×？因为 MAC 是卷积乘加数量，不是完整运行时间。StreamNet 还要读写和拼接 buffer、执行控制与地址计算；不同 kernel 的效率也不同；而 patch-wise 优化之外的 layer-wise 部分仍然花时间。论文没有单独做实验把这几项各自贡献分离出来，所以更准确的说法是：<strong>MAC 大幅下降推动了延迟下降，但延迟不会按 MAC 比例机械缩放。</strong></p>
+<p>GMEAN 是 10 个模型各自 speedup ratio 的几何平均：</p>
+<script type="math/tex; mode=display">
+\mathrm{GMEAN} = \left(\prod_{i=1}^{N} s_i\right)^{1/N}</script><p>它不是某个模型的 speedup，也不是把十个倍数直接做算术平均。</p>
+<h3 id="Table-2-和-Table-3：同一组-patch-参数下的机制对照"><a href="#Table-2-和-Table-3：同一组-patch-参数下的机制对照" class="headerlink" title="Table 2 和 Table 3：同一组 patch 参数下的机制对照"></a>Table 2 和 Table 3：同一组 patch 参数下的机制对照</h3><p>Table 2 和 Table 3 对同一个模型使用相同的 n_patch 和 split_idx，再比较 MCUNetV2、带 padding bypass 的 MNv2+、StreamNet-1D 和 StreamNet-2D。这比 Table 1 更适合看各机制带来的变化。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th style="text-align:right">MAC GMEAN 加速比（Table 2）</th>
+<th style="text-align:right">延迟 GMEAN 加速比（Table 3）</th>
+<th>这组对照说明什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MCUNetV2</td>
+<td style="text-align:right">1.00×</td>
+<td style="text-align:right">1.00×</td>
+<td>patch-based 基线</td>
+</tr>
+<tr>
+<td>MNv2+</td>
+<td style="text-align:right">1.08×</td>
+<td style="text-align:right">1.10×</td>
+<td>单独加入 padding bypass，平均收益较小</td>
+</tr>
+<tr>
+<td>StreamNet-1D</td>
+<td style="text-align:right">3.45×</td>
+<td style="text-align:right">3.40×</td>
+<td>单方向 stream buffer 复用开始成为主要收益</td>
+</tr>
+<tr>
+<td>StreamNet-2D</td>
+<td style="text-align:right">7.18×</td>
+<td style="text-align:right">7.28×</td>
+<td>两方向复用进一步降低 MAC 与延迟</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这回答了“真正贡献主要来自哪里”：padding bypass 是有用的配套 kernel 优化，但平均 MAC 收益较小；主要降重算来自 stream buffer，尤其是 2D streaming。</p>
+<p>正文表述和摘要里还有一个需要诚实保留的数字差异：摘要说 StreamNet-2D 节省 81% MAC，Section 5.3 又说平均减少 83%；Table 2 的几何平均 MAC speedup 是 7.18×。这些数字没有在文中用同一公式解释清楚，不能把它们当成一组严格可互换的数。</p>
+<h2 id="Figure-7：更快要付出多少-SRAM，调优又怎样工作"><a href="#Figure-7：更快要付出多少-SRAM，调优又怎样工作" class="headerlink" title="Figure 7：更快要付出多少 SRAM，调优又怎样工作"></a>Figure 7：更快要付出多少 SRAM，调优又怎样工作</h2><blockquote>
+<p><strong>插图位置：原论文 Figure 7，PDF 第 9 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/figure7_memory_autotuning.png" alt="论文 Figure 7：不同方法的峰值 SRAM 与不同内存预算下的自动调优结果"></p>
+<p>Figure 7(a) 左图比较 layer-wise、MCUNetV2、StreamNet-1D 和 StreamNet-2D 的 peak memory。正文报告相对 layer-wise 平均节省 66%、62% 和 47% SRAM；同时作者报告 stream buffer 使 StreamNet-1D 和 StreamNet-2D 比 MCUNetV2 平均多占约 4% 和 22% SRAM。</p>
+<p>所以这里不是“StreamNet 所有维度都更好”：2D 的数据复用更充分，MAC 和延迟下降更多，但它需要更多 buffer SRAM。论文没有把这两组平均比例的计算口径讲到足以互相推算，不能简单拿 66%、62%、47% 相减来推导 buffer 的精确字节数。</p>
+<p>Figure 7(b) 研究自动调优：以每个模型 StreamNet-1D 的最低 SRAM 配置为起点，把可用预算分别增加 5%、10%、15%，并让 StreamNet 与 MCUNetV2 都在各自约束下调参。StreamNet 对调优后的 MCUNetV2 的 GMEAN 加速比分别约为 1.63×、1.61×、1.80×。它不是随着预算增加严格单调上升，因为基线也会重新调优，且候选配置是离散的。MI0 的 n_patch 和 split_idx 较小，原本重算就不多，所以收益只有约 1.07–1.09×；MI3 的 patch-wise 部分和重复计算更多，收益明显得多。</p>
+<p>补充材料再用散点图检查 MAC overhead 能不能代表 latency overhead：</p>
+<blockquote>
+<p><strong>插图位置：补充材料 Figure 2，PDF 第 3 页。</strong></p>
+</blockquote>
+<p><img src="https://204180371.xyz/PicGo/supp_figure2_mac_latency_correlation.png" alt="补充材料 Figure 2：不同配置中的 MAC overhead 与 latency overhead 相关性"></p>
+<p>横轴是 MAC overhead，纵轴是 latency overhead；散点总体呈明显正相关，论文报告 Pearson r=0.97、R²=0.94。它支持作者在这个 Cortex-M7 实验设置中用编译期 MAC 数作为调优代理，避免每个参数候选都上板实测。它不代表 MAC 和 latency 恒等，也不能保证换一块带 NPU、cache、DMA 或不同 kernel 的硬件后仍有同样关系。</p>
+<h3 id="补充材料里一处我不会直接照抄的数"><a href="#补充材料里一处我不会直接照抄的数" class="headerlink" title="补充材料里一处我不会直接照抄的数"></a>补充材料里一处我不会直接照抄的数</h3><p>补充材料的 patch-wise latency Table 3 把 MB2 的 MCUNetV2 latency 印成了 1.34 ms。这个量级和正文 Table 3 的 MB2 全模型 1,514 ms、补充表里其他实现与 speedup 列都对不上。原文没有解释，我会把它标成疑似排版或数字错误，不擅自补成某个猜测值。</p>
+<h2 id="这篇论文证明了什么，又没有测什么"><a href="#这篇论文证明了什么，又没有测什么" class="headerlink" title="这篇论文证明了什么，又没有测什么"></a>这篇论文证明了什么，又没有测什么</h2><p>我现在会把论文的结论压缩成三句话：</p>
+<ol>
+<li>MCUNetV2 的 patch-based inference 能以分块执行降低峰值 SRAM，但会因 patch 间依赖重叠增加 MAC。</li>
+<li>StreamNet 用 1D/2D stream buffer 留住后续 patch 仍需要的已完成激活，并用 output-padding bypass 跳过确定为零的输出位置；buffer 越充分，复用越多，SRAM 成本也越高。</li>
+<li>在论文的 10 个 INT8 模型和 STM32F767ZI Cortex-M7 上，这些设计让 patch-based 推理的 MAC 和实际 latency 明显下降；作者没有因此证明所有 MCU 都能获得同样倍数。</li>
+</ol>
+<p>论文没有直接测功耗或能耗，没有跨多个 MCU/NPU 平台的结果，也没有提供误差条、Flash/code size、编译时间等完整系统指标。摘要提到 low-power MCU 背景，不等于论文测出了 StreamNet 的能耗收益。更不能把这组 Cortex-M7 结果直接搬到 STM32N6570、A55+M33 或带 NPU 的平台上。</p>
+<h2 id="我最后真正弄懂的那条主线"><a href="#我最后真正弄懂的那条主线" class="headerlink" title="我最后真正弄懂的那条主线"></a>我最后真正弄懂的那条主线</h2><p>读完后，我不会再说“StreamNet 把需要重算的 patch 存进 SRAM”。我会这样解释：</p>
+<blockquote>
+<p>MCUNetV2 把前段完整 tensor 改为逐 patch 跨层执行，用较低峰值 SRAM 换来 patch 重叠导致的重复 MAC。StreamNet 找出前一个 patch 已经完成、后一个 patch 还会用到的中间输出激活，把它们放进 stream buffer；1D 只覆盖一个空间方向，2D 再覆盖另一个方向与角落。Output-padding bypass 是独立优化，只对输出坐标本身属于 padding 的位置直接写零。参数、内存规划和代码生成都在部署前完成，MCU 推理时运行的是固定生成代码。实际收益由 MAC、buffer SRAM、访存、kernel 和未优化层共同决定。</p>
+</blockquote>
+<p>对我自己的方向来说，这篇论文留下的问题不是“StreamNet 能不能原样跑在另一块板上”，而是应该先测：目标设备究竟被哪一级内存或数据搬运卡住？哪些中间值会重复生成，缓存它们的字节成本是多少？MAC 减少能不能在目标 kernel 和内存层次上转化成真实延迟或能耗下降？如果 SRAM 充足、patch 数少，或者系统主要受 DMA、cache、NPU 数据布局限制，复用带来的净收益可能就不一样。</p>
+<p>这也是我从 Figure 1 到 Figure 7 学到的阅读顺序：先识别约束和比较对象，再追一格输出怎么产生、跨 patch 的生命周期怎样变化，最后回到实验表核对分母、硬件和资源代价。只有把“保存了什么、跳过了什么、在哪个阶段发生、为它付出什么”说清楚，才算真的把 StreamNet 读懂。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Hong-Sheng Zheng et al., <em>StreamNet: Memory-Efficient Streaming Tiny Deep Learning Inference on the Microcontroller</em>, NeurIPS 2023. <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/file/7526508f11bbe0a123af62b9dab1fbe1-Paper-Conference.pdf">论文 PDF</a></li>
+<li><a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2023/file/7526508f11bbe0a123af62b9dab1fbe1-Supplemental-Conference.pdf">NeurIPS 2023 官方补充材料</a></li>
+</ul>
+</article><footer class="literature-footer"><p>个人文献阅读笔记，不代表任何学校、机构或论文作者的官方立场。</p></footer></main></body></html>

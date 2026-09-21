@@ -7,6 +7,13 @@
 };</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
 </head><body class="literature-portal"><div class="literature-pattern" aria-hidden="true"></div><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>从 .tflite 到一次完整推理：我如何读懂 TensorFlow Lite Micro</h1><p class="report-summary">沿着模型转换、算子注册、Tensor Arena、静态内存规划与执行调度，梳理 TFLM 如何在资源受限的 MCU 上完成一次推理，并结合论文图表辨析性能结论与适用边界。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-21T04:00:00.000Z">2026-09-21</time></span><span><strong>论文</strong><em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em></span><span><strong>领域</strong><em>TinyML · TensorFlow Lite Micro · MCU 推理</em></span></div></header><article class="literature-article"><p><img src="/literature-reports/tflm/tflm-system-overview.png" alt="TensorFlow Lite Micro 系统流程概览"></p>
 <p>我第一次读 <em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em> 时，几乎还没有学过 MCU 推理框架。那时我大概知道模型要放进开发板，却说不清 <code>.tflite</code> 里面到底是什么、Interpreter 为什么叫解释器、算子如何找到 kernel，更说不清 Figure 4 里的 A、B、C、D 为什么形状不同。</p>
+<h2 id="论文信息"><a href="#论文信息" class="headerlink" title="论文信息"></a>论文信息</h2><ul>
+<li><strong>作者：</strong> Robert David、Jared Duke、Advait Jain、Vijay Janapa Reddi、Nat Jeffries、Jian Li、Nick Kreeger、Ian Nappier、Meghna Natraj、Shlomi Regev、Rocky Rhodes、Tiezhen Wang、Pete Warden</li>
+<li><strong>版本：</strong> MLSys 2021 正式论文；arXiv 预印本 arXiv:2010.08678（2020）。</li>
+<li><strong>原文：</strong> <a target="_blank" rel="noopener" href="https://proceedings.mlsys.org/paper_files/paper/2021/hash/6c44dc73014d66ba49b28d483a8f8b0d-Abstract.html">MLSys 2021 论文记录</a> · <a target="_blank" rel="noopener" href="https://proceedings.mlsys.org/paper_files/paper/2021/file/6c44dc73014d66ba49b28d483a8f8b0d-Paper.pdf">论文 PDF</a> · <a target="_blank" rel="noopener" href="https://arxiv.org/abs/2010.08678">arXiv 页面</a></li>
+<li><strong>题名说明：</strong> MLSys 题录页写作 “for TinyML Systems”，正式论文 PDF 与 arXiv 页面写作 “on TinyML Systems”；此处题名遵循正式 PDF。</li>
+<li><strong>代码：</strong> <a target="_blank" rel="noopener" href="https://github.com/tensorflow/tflite-micro">TensorFlow Lite Micro 官方代码库</a></li>
+</ul>
 <p>后来学长追问 Figure 4，我没把坐标轴、内存大小和生命周期讲明白，这篇论文也就被打回来重读了。现在重新回看，这次卡住反而挺有价值：它逼着我把“模型格式—算子注册—内存规划—推理调度—平台优化”整条链真正连了起来。</p>
 <p>我现在对 TFLM 的一句话理解是：</p>
 <blockquote>
