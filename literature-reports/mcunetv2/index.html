@@ -1,0 +1,577 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light"><meta name="description" content="围绕逐 patch 跨层执行、重叠计算的代价、感受野重分配与架构/调度联合搜索，梳理论文如何降低 MCU 推理的峰值激活内存，并区分解析估计、开发板测量与数据集实验结论。"><title>把整张特征图拆开算：我如何读懂 MCUNetV2 | 文献阅读报告</title><link rel="stylesheet" href="/literature-reports/assets/literature-reports.css"><script>window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body class="literature-portal"><div class="literature-pattern" aria-hidden="true"></div><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>把整张特征图拆开算：我如何读懂 MCUNetV2</h1><p class="report-summary">围绕逐 patch 跨层执行、重叠计算的代价、感受野重分配与架构/调度联合搜索，梳理论文如何降低 MCU 推理的峰值激活内存，并区分解析估计、开发板测量与数据集实验结论。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-20T04:00:00.000Z">2026-09-20</time></span><span><strong>论文</strong><em>MCUNetV2: Memory-Efficient Patch-based Inference for Tiny Deep Learning</em></span><span><strong>领域</strong><em>TinyML · Patch-based Inference · MCU 内存优化</em></span></div></header><article class="literature-article"><p>我第一次看 <strong>MCUNetV2: Memory-Efficient Patch-based Inference for Tiny Deep Learning</strong> 时，把它说成“把好几种已有方法有机结合起来”。这个概括不算全错，但没有抓住主次。学长提醒我多看运行时后，我才慢慢把中心收窄：这篇论文的核心是改变 CNN 前段的<strong>推理调度</strong>，把原本整层执行的高内存计算改成逐 patch 跨层执行。</p>
+<p>后面的设计围绕这个核心展开：逐 patch 执行降低同时驻留的激活，却会因为 patch 输入重叠而重复计算；感受野重分配用来缓解这项代价；架构与调度的联合搜索用来寻找满足硬件预算的组合。它不是“发明了一个全新的 CNN”，也不能简化成“只做了分块、其他都不重要”。</p>
+<p>我读这篇论文时真正卡住的问题包括：前几层为什么特别占内存？patch 为什么必须重叠？感受野是卷积核大小吗？Figure 4 里的 MB6、MB1 是什么？NAS 是不是 MCU 每次收到图像后才运行？Table 里的 MACs、SRAM、latency 和 accuracy 又分别能证明什么？这篇文章按这些问题展开，尽量把论文主张、我的理解、教学例子和实验数字分开。</p>
+<p>论文正文和补充材料以 <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Paper.pdf">NeurIPS 2021 正式论文 PDF</a> 与<a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Supplemental.pdf">官方补充材料</a> 为准。文中的表格是我根据论文数字重新排成 Markdown，不是开发板实测记录。</p>
+<h2 id="先把论文要解决的瓶颈说清楚"><a href="#先把论文要解决的瓶颈说清楚" class="headerlink" title="先把论文要解决的瓶颈说清楚"></a>先把论文要解决的瓶颈说清楚</h2><p>MCU 上的模型部署不能只看模型文件有多大。至少要分开看四类东西：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>资源</th>
+<th>是什么</th>
+<th>常见存放位置</th>
+<th>会不会随输入变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>权重</td>
+<td>训练得到的卷积核、偏置等参数</td>
+<td>Flash / ROM</td>
+<td>不会</td>
+</tr>
+<tr>
+<td>激活值</td>
+<td>当前输入经过各层后产生的中间特征图</td>
+<td>SRAM</td>
+<td>会</td>
+</tr>
+<tr>
+<td>临时工作区</td>
+<td>算子执行所需的部分权重、im2col 等 buffer</td>
+<td>SRAM 或平台指定区域</td>
+<td>执行期间使用</td>
+</tr>
+<tr>
+<td>程序与运行状态</td>
+<td>kernel、推理调度代码、张量描述等</td>
+<td>代码多在 Flash，状态依实现而定</td>
+<td>一部分会变化</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>MCUNetV2 主要瞄准的是 <strong>peak activation memory，峰值激活内存</strong>。权重已经量化成 int8，并不代表运行时的输入和输出激活一定放得下。卷积某一层运行时，输入与输出 buffer 可能需要同时存在；如果单层要用的中间张量太大，整张量生命周期规划也不能把它变小。</p>
+<h3 id="为什么前几层的特征图更容易成为峰值"><a href="#为什么前几层的特征图更容易成为峰值" class="headerlink" title="为什么前几层的特征图更容易成为峰值"></a>为什么前几层的特征图更容易成为峰值</h3><p>常见层级 CNN 会逐 stage 降低特征图的空间分辨率，同时增加通道数。若高度 (H) 和宽度 (W) 各减半，通道数 (C) 加倍，那么激活元素数量会变成：</p>
+<script type="math/tex; mode=display">
+\frac{H}{2}\times\frac{W}{2}\times 2C = \frac{1}{2}HWC.</script><p>空间像素数减少到四分之一，通道数只增加一倍，所以总元素数反而减半。重复经过这样的 stage 后，网络后段的特征图通常比开头小得多。这个趋势适用于很多常见层级 CNN，但不是“所有网络都必然如此”的定理；带复杂分支或特殊算子的网络还要单独分析。</p>
+<p>论文的 MobileNetV2 案例中，前 5 个 block 的 peak memory 超过约 450 kB，后面 13 个 block 的需求则能落在 256 kB MCU 的预算内。最高峰达到 1372 kB，远高于后段。于是作者问的不是“能不能把整个网络都再缩小一点”，而是：<strong>前段占用很高的完整 feature map，有没有必要一次性全部算出并保存在 SRAM？</strong></p>
+<p>论文给了一个更直接的例子。输入分辨率 (224\times224)，第一层从 3 个通道卷积到 32 个通道，stride 为 2，int8 每个元素按 1 byte 算：</p>
+<script type="math/tex; mode=display">
+M_{input}=224\times224\times3=150{,}528\text{ bytes}</script><script type="math/tex; mode=display">
+M_{output}=112\times112\times32=401{,}408\text{ bytes}</script><script type="math/tex; mode=display">
+M_{input}+M_{output}=551{,}936\text{ bytes}=539\text{ KiB}.</script><p>输入与输出同时占用就约 539 KiB，还没算 kernel 临时 buffer、框架状态和对齐。只要可用 SRAM 预算是 256 KiB，这种逐层执行方式就装不下这一层的整张输入与输出。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921144643510.png" alt="figure1"></p>
+<ul>
+<li><strong>图中横轴是 MobileNetV2 的 block index，纵轴是 int8 条件下的 memory usage（kB）；蓝色柱是 per-layer，黄色柱是 per-patch。虚线水平线标出 256 kB 约束；标注指出 per-layer peak 为 1372 kB，4×4 patch 的 per-patch peak 为 172 kB，约低 8 倍。前五个 block 是瓶颈区，后面区段需求小。图注特别说明两种设置的网络结构和 accuracy 没变，所以这是执行调度改变带来的内存差异，不是换了一个更小模型。</strong></li>
+</ul>
+<p>Figure 1 为什么画成逐 block 柱状图？因为论文要让读者先看到“内存并不是均匀分布在整张网络里”：高峰集中在开头。只有这个现象成立，跳过“为前几层缩小整个网络”的方案才有动机。图支持的是 MobileNetV2 案例中峰值集中在早期、逐 patch 能显著降峰值；它本身还不能证明所有 CNN、所有硬件都有 8 倍收益。</p>
+<h3 id="为什么不能只把输入分辨率降下来"><a href="#为什么不能只把输入分辨率降下来" class="headerlink" title="为什么不能只把输入分辨率降下来"></a>为什么不能只把输入分辨率降下来</h3><p>降分辨率确实能减少 (H\times W\times C)，但检测任务也会失去空间细节。Figure 2 把 ImageNet Top-1 和 Pascal VOC mAP 随输入分辨率变化的趋势放在一起，作者想说明检测性能对分辨率下降更敏感。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921144839147.png" alt=""></p>
+<ul>
+<li><strong>横轴 Image Resolution、纵轴 Accuracy/mAP (%)、VOC mAP 与 ImgNet Top-1 图例，以及 “larger degrade” 标注。图中两条曲线来自不同任务和不同指标，能比较各自随分辨率变化的趋势，不能把 Top-1 与 mAP 的绝对数值当成同一种量直接比较。</strong></li>
+</ul>
+<p>我当时提出过一个很好的审稿问题：mAP 是跨类别聚合的指标，整体曲线接近并不能说明每个类别、每种目标尺寸的能力都一样。要证明大目标比小目标稳定，应该按目标尺寸进一步报告 AP(<em>{small})、AP(</em>{medium})、AP(_{large})，或做相应分组分析；Figure 2 没有提供这些分组，所以它不能单独支持这个更细的结论。</p>
+<p>我还核对过 Figure 2 的刻度版本：我当时使用的阅读版第三个刻度是 288，而最终 PDF 的同一位置显示 228。博客引用以正式 PDF 为准，但不能只凭曲线猜作者本来想写哪个数字。这种图中文字差异要记录，不应自行“修正”成看起来更合理的值。</p>
+<h2 id="核心运行时方法：per-layer-改成前段-per-patch"><a href="#核心运行时方法：per-layer-改成前段-per-patch" class="headerlink" title="核心运行时方法：per-layer 改成前段 per-patch"></a>核心运行时方法：per-layer 改成前段 per-patch</h2><p><strong>Per-layer inference（逐层推理）</strong>是常见执行方式：完整执行一层，产生完整输出 feature map；再把整张输出交给下一层。它便于使用 im2col、tiling 等成熟卷积优化，但前段每层的输入和输出整张图都可能很大。</p>
+<p><strong>Patch-by-patch inference（逐 patch 推理）</strong>改变的是前段的执行顺序：一次只计算一块空间区域，让这块局部中间结果继续通过前段后续层；然后再处理下一块。等前段高分辨率部分处理完、feature map 已经较小，后段就恢复逐层执行。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Per-layer：整张 X → 完整算出 B → 完整算出 C → 完整算出 Y</span><br><span class="line"></span><br><span class="line">Per-patch：X 的局部区域 → 局部 B → 局部 C → 写入 Y 的对应区域</span><br><span class="line">          另一局部区域 → 局部 B → 局部 C → 写入 Y 的另一对应区域</span><br><span class="line">          ……直到 Y 的空间区域都计算完成</span><br></pre></td></tr></table></figure>
+<p>我曾用一句话确认自己的理解：“不是从 X 到完整 B 再到完整 Y；而是 X 的一部分先卷积成 B 的一部分，再继续卷积成最终 C 的一部分。”这个主线是对的。补充两个边界后就更精确：第一，分块只用在网络前段，不要求整个模型都 patch 化；第二，最终输出 patch 可以各写一次，但它们依赖的输入 patch 往往要重叠，不能把需要的邻域直接删掉。</p>
+<p><img src="https://204180371.xyz/PicGo/20260921144934181.png" alt=""></p>
+<ul>
+<li><strong>图分成 <code>(a) Per-layer computation (executing first conv)</code> 与 <code>(b) Per-patch computation (executing first patch)</code>。图例逐项说明：深蓝 <code>In memory</code>、浅蓝 <code>Not in memory</code>、实线箭头 <code>Currently executing</code>、虚线箭头 <code>To be executed</code>、斜线区域 <code>Overlapped</code>。块上 H/W/C 标出张量空间与通道维度；<code>conv1 s=1</code> 和 <code>conv2 s=2</code> 分别表示第一、第二卷积及其 stride。左图说明完整输入/输出激活同时驻留会形成大峰值；右图说明当前只处理一个 patch，后续 patch 留待执行。</strong></li>
+</ul>
+<p>Figure 3 的一个关键细节是：per-patch 仍要有空间存放<strong>前段最后的输出 feature map</strong>，然后把每块算出的最终输出写到对应区域。它不是“SRAM 里永远只有一个 patch、其他结果全都不存在”。省下来的主要是前段中间层的整张高分辨率 activation；最后输出通常已经经过下采样，尺寸小一些。论文还提到，原始图像可由 JPEG 等压缩格式局部解码，这是输入管线允许时的额外节省，并非所有传感器输入都自动具备。</p>
+<h3 id="输出不重叠，为什么输入却要重叠"><a href="#输出不重叠，为什么输入却要重叠" class="headerlink" title="输出不重叠，为什么输入却要重叠"></a>输出不重叠，为什么输入却要重叠</h3><p>卷积的输出依赖输入邻域。两个输出区域虽然可以不重叠，但靠近分界处的输出仍然会用到分界另一侧的输入。如果输入 patch 只按输出区域整齐切开、把邻居像素删掉，边缘位置会缺失原始卷积需要的上下文，结果就不再等于整图逐层计算。</p>
+<p>因此，patch 输入要带一圈 <strong>halo（边界外扩区）</strong>。相邻输入 patch 的 halo 会重叠，某些中间卷积结果便会被重复算；每个最终输出位置仍然只写入一次。内存省下来的原因是局部数据分次驻留，而不是丢弃必需的邻域信息。</p>
+<p>论文的 MobileNetV2 例子能看出差别：224 输入切成 (4\times4)，只按几何划分时每块边长是 (224/4=56)；考虑前段累计感受野后，实际输入 patch 需要 (75\times75)。多出的部分就是 halo 和重叠所需的空间。</p>
+<p>我也用过一个一维教学例题练习重算次数。假设三个 patch 分别需要下面四个中间单元：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Patch 1：B0 B1 B2 B3</span><br><span class="line">Patch 2：B2 B3 B4 B5</span><br><span class="line">Patch 3：B4 B5 B6 B7</span><br></pre></td></tr></table></figure>
+<p>逐 patch 共执行 (3\times4=12) 次中间单元计算；若完整逐层只计算 B0 到 B7，则是 8 次，因此这个玩具例子多了 4 次。B2/B3、B4/B5 是重叠依赖导致的重复部分。这个计数假设每个单元的成本相同，只用于理解“重复在哪里”；不能拿 12/8 直接当论文网络的 MACs 倍率。最后输出 Y 的各个区域仍然只生成一次，不应该把 Y 的重复写入算进去。</p>
+<p>这也解释了一个常见误区：<strong>SRAM 降 8 倍不代表推理快 8 倍。</strong> 内存占用、MACs、真实 latency、能耗是不同指标。patch 重叠会增加计算；分块还可能降低某些 kernel 的硬件利用率，所以延迟可能上升，也可能因模型和硬件不同而变化。</p>
+<h2 id="感受野不是卷积核：为什么要把它往后重分配"><a href="#感受野不是卷积核：为什么要把它往后重分配" class="headerlink" title="感受野不是卷积核：为什么要把它往后重分配"></a>感受野不是卷积核：为什么要把它往后重分配</h2><p>我曾问“感受野是不是卷积核大小？把 (5\times5) 改成 (1\times1) 是不是就缩小感受野？”更准确的回答是：<strong>卷积核大小决定单层看多大的局部邻域；网络某一层的累计感受野取决于一路经过的卷积核、stride 和前面层的空间跳距。</strong> 所以，一个 (5\times5) kernel 确实会比 (1\times1) kernel 在该层引入更大的局部范围，但不能把整张网络的感受野等同于某个单独卷积核。</p>
+<p>对于普通卷积，累计感受野可用一个简化递推式理解。令初始感受野 (R_0=1)，相邻特征点映射回输入的间距 (J_0=1)，第 (l) 层 kernel 为 (k_l)、stride 为 (s_l)：</p>
+<script type="math/tex; mode=display">
+R_l=R_{l-1}+(k_l-1)J_{l-1},\qquad J_l=J_{l-1}s_l.</script><p>这是帮助理解的通用推导，不是论文专门提出的公式。比如连续三个 stride-1 的 (3\times3) 卷积，感受野从 1 扩成 3、5、7；前面若出现 stride 2，后续 kernel 对原图感受野的增量也会更大。</p>
+<p>前段 patch stage 的累计感受野越大，每个最终输出区域需要的输入 halo 越宽；halo 越宽，patch 间重复计算越多。作者于是提出 <strong>receptive-field redistribution（感受野重分配）</strong>：</p>
+<ul>
+<li>patch 执行的前段用较小 kernel、减少部分 block，让重复执行的区域 RF 更小；</li>
+<li>per-layer 的后段增加 block 或较大的 kernel，把一部分感受野与计算放到只执行一遍的区域。</li>
+</ul>
+<p>后段“补回感受野”是方向正确的直觉，但不表示它能逐点恢复前段没有计算出的全部信息。网络结构变了，训练后是否保住任务性能必须由实验验证。论文报告的是 MbV2-RD 在 ImageNet 和 Pascal VOC 上达到相近表现，同时降低了 patch 重叠计算；它不是数学上保证所有任务无损。</p>
+<p><img src="https://204180371.xyz/PicGo/figure-04-reading.png" alt=""></p>
+<ul>
+<li><strong>图上下两行比较 <code>MbV2</code> 与 <code>MbV2-RD</code>；横向是从网络前段到后段的 block 顺序。左侧标出 <code>large peak memory / per-patch</code>，表示高内存前段使用 patch；右侧是 <code>small peak memory / per-layer</code>，表示后段恢复逐层。箭头 <code>Reduce Receptive Field</code> 指向前段，<code>Increase Receptive Field</code> 指向后段；虚线边框表示 stride=2。</strong><br>&gt;<blockquote>
+<p>图里的 <code>MB&#123;expansion ratio&#125; &#123;kernel size&#125;</code> 不是 block 编号。<code>MB6 3×3</code> 表示 expansion ratio 为 6、depthwise kernel 为 3×3 的 mobile inverted block；<code>MB1 1×1</code> 表示 expansion ratio 为 1、kernel 为 1×1，不是“第 1 个 block”。Inverted bottleneck 通常先用 pointwise 卷积扩展通道，再做 depthwise spatial convolution，最后投影回输出通道；expansion ratio 描述中间通道相对输入通道的扩张倍数。图里少量 MB1 1×1、较小 kernel 以及减少的前段 block 都服务于缩小 patch stage 的累计 RF。具体模块颜色用于区分图中标出的执行区段；解释时应以图上阶段文字和箭头为依据，不额外猜颜色含义。</p>
+</blockquote>
+</li>
+</ul>
+<p>图 4 放在这里，是因为读者需要先知道“halo 为什么会重复计算”，才能理解作者为什么移动前后段 RF。作者把上下两种结构并排画，是在展示结构改动发生在哪里：前段减少，后段补回；图本身说明设计变化，不单独证明精度没有下降，精度要看表格。</p>
+<h3 id="Table-1：把重分配前后的代价一起看"><a href="#Table-1：把重分配前后的代价一起看" class="headerlink" title="Table 1：把重分配前后的代价一起看"></a>Table 1：把重分配前后的代价一起看</h3><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align:right">输入 patch</th>
+<th style="text-align:right">Patch-stage 额外计算</th>
+<th style="text-align:right">全网额外计算</th>
+<th style="text-align:right">Patch-stage MACs</th>
+<th style="text-align:right">全网 MACs</th>
+<th style="text-align:right">Per-layer peak SRAM</th>
+<th style="text-align:right">Per-patch peak SRAM</th>
+<th style="text-align:right">ImageNet Top-1</th>
+<th style="text-align:right">VOC mAP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MbV2</td>
+<td style="text-align:right">75×75</td>
+<td style="text-align:right">+42%</td>
+<td style="text-align:right">+10%</td>
+<td style="text-align:right">130M</td>
+<td style="text-align:right">330M</td>
+<td style="text-align:right">1372 kB</td>
+<td style="text-align:right">172 kB（8×↓）</td>
+<td style="text-align:right">72.2%</td>
+<td style="text-align:right">75.4%</td>
+</tr>
+<tr>
+<td>MbV2-RD</td>
+<td style="text-align:right">63×63</td>
+<td style="text-align:right">+18%</td>
+<td style="text-align:right">+3%</td>
+<td style="text-align:right">73M</td>
+<td style="text-align:right">301M</td>
+<td style="text-align:right">1372 kB</td>
+<td style="text-align:right">172 kB（8×↓）</td>
+<td style="text-align:right">72.1%</td>
+<td style="text-align:right">75.7%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>表里的 <code>+3%</code> 是 MbV2-RD 使用 per-patch 调度时，相对于<strong>MbV2-RD 自己逐层执行</strong>的 MACs 增量：</p>
+<script type="math/tex; mode=display">
+\frac{\mathrm{MACs}(\text{MbV2-RD, patch})-\mathrm{MACs}(\text{MbV2-RD, layer})}
+{\mathrm{MACs}(\text{MbV2-RD, layer})}\approx 3\%.</script><p>它不是精度增加 3%，也不是 latency 提速 3%。同一行中 MbV2-RD 的 patch-stage 额外计算为 +18%，但它只占全网一部分，故摊到全网是 +3%。这是“局部开销”和“全网开销”两种不同分母。</p>
+<p>两种结构的 peak SRAM 都从 1372 kB 降到 172 kB，约 8 倍；MbV2-RD 把 patch 从 75×75 缩到 63×63，全网额外 MACs 从 10% 降到 3%，Top-1 与 mAP 数字接近。最能支持的结论是：对这个网络与任务，重分配降低了分块重算开销而没有观察到明显精度损失。表格并不能保证别的网络也得到同样 3%。</p>
+<h2 id="联合搜索：哪些东西被搜索，为什么需要-supernet"><a href="#联合搜索：哪些东西被搜索，为什么需要-supernet" class="headerlink" title="联合搜索：哪些东西被搜索，为什么需要 supernet"></a>联合搜索：哪些东西被搜索，为什么需要 supernet</h2><p>手工重排 MobileNetV2 可以解释机制，但不同数据集、硬件和 SRAM/Flash/latency 预算不一样。一个分辨率更高、通道更宽的结构可能更准，却不满足 SRAM；更多 patch 可以继续降峰值，却会放大重算。作者把<strong>网络结构</strong>与<strong>推理调度</strong>放进同一搜索空间。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>搜索侧</th>
+<th>符号</th>
+<th>含义与候选值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>网络结构</td>
+<td>(k)</td>
+<td>各 separable-convolution block 的 kernel size：3、5、7</td>
+</tr>
+<tr>
+<td>网络结构</td>
+<td>(e)</td>
+<td>inverted residual block 的 expansion ratio：3、4、6</td>
+</tr>
+<tr>
+<td>网络结构</td>
+<td>(d)</td>
+<td>每个 stage 的 block 数：2、3、4</td>
+</tr>
+<tr>
+<td>网络结构</td>
+<td>(w)</td>
+<td>每个 block 的 width multiplier：0.5、0.75、1.0</td>
+</tr>
+<tr>
+<td>网络结构</td>
+<td>(r)</td>
+<td>输入分辨率：96、128、160、192、224、256</td>
+</tr>
+<tr>
+<td>执行调度</td>
+<td>(p)</td>
+<td>每个方向的 patch 数；总 patch 数为 (p\times p)，候选 1、2、3、4</td>
+</tr>
+<tr>
+<td>执行调度</td>
+<td>(n)</td>
+<td>前多少个 layer/block 采用 patch-based，剩下的恢复 per-layer</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>搜索目标可以写成：在 SRAM、Flash 和 latency 都满足预算的候选中，找验证精度最高的网络—调度组合。这个说法表示搜索目标，不表示进化算法保证找到整个巨大空间的全局最优解。</p>
+<p>我当时问过：supernet 是什么？为什么有了它就“能搜”出合适网络？可以先把它理解成一个包含很多较小候选网络的共享权重网络。每个候选子网从 supernet 中选取一部分通道、block 或 kernel 配置，继承对应权重来快速评估，不需要每个候选都从零训练。共享权重让候选筛选可负担，但候选排序是近似评估，不等于每个候选完整训练后的最终成绩；选出的模型还要微调与量化训练。</p>
+<p>论文把搜索过程放在<strong>部署前的训练/主机端</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">训练最大的候选网络</span><br><span class="line">    ↓ 按通道重要性排列并建立共享权重 supernet</span><br><span class="line">从 supernet 抽取候选子网</span><br><span class="line">    ↓ 校准 BN，评估精度与资源成本</span><br><span class="line">为候选枚举可行的 (p, n) 调度</span><br><span class="line">    ↓ SRAM / Flash / latency 约束筛选</span><br><span class="line">进化搜索保留较好候选、交叉与变异</span><br><span class="line">    ↓</span><br><span class="line">选定网络和调度，微调并做 int8 QAT</span><br><span class="line">    ↓</span><br><span class="line">部署到 MCU；推理时按已确定方案执行</span><br></pre></td></tr></table></figure>
+<p>这里的 <strong>runtime inference（运行时推理）</strong>不是每张图像来了之后都重新跑 NAS。搜索完成后，设备获得选定模型、权重和执行配置；MCU 对每个输入按这个固定网络与 patch 调度完成计算。运行时改变的是“每次推理怎样执行”，搜索则在部署前完成。</p>
+<h3 id="附录补充：论文的-supernet-和进化搜索是怎么落地的"><a href="#附录补充：论文的-supernet-和进化搜索是怎么落地的" class="headerlink" title="附录补充：论文的 supernet 和进化搜索是怎么落地的"></a>附录补充：论文的 supernet 和进化搜索是怎么落地的</h3><p>这些是论文补充材料报告的训练/搜索配置，放在这里是为了说明“NAS”不是一个黑箱词。它们是作者实验设置，不是我自己训练出来的结果。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>论文报告的做法</th>
+<th>为什么这么做</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>最大网络训练</td>
+<td>MnasNet-alike 搜索空间；ImageNet 150 epochs、VWW 30 epochs；SGD、batch size 1024、初始学习率 0.2、weight decay (4\times10^{-5})、cosine decay</td>
+<td>先给搜索空间中的候选提供训练权重</td>
+</tr>
+<tr>
+<td>建立 supernet</td>
+<td>按通道权重 L1 norm 排序；用最大网络权重初始化；再训练两倍 epochs（ImageNet 300、VWW 60），每步采样 4 个子网并平均梯度</td>
+<td>让多个子网共享权重，降低逐个从零训练的成本</td>
+</tr>
+<tr>
+<td>子网验证</td>
+<td>从训练数据切出 ImageNet 10,000 张、其他数据集 5,000 张验证集；评估前用 20 个 batch、每批 64 个样本重校准 BatchNorm 统计量</td>
+<td>尽量以一致方式比较抽出的子网，避免把旧 BN 统计直接套到不同子网</td>
+</tr>
+<tr>
+<td>进化搜索</td>
+<td>population 100；每代保留 top-20；crossover 生成 50 个、mutation 生成 50 个；mutation rate 0.1，共 30 轮</td>
+<td>在离散候选中反复筛选、组合和扰动</td>
+</tr>
+<tr>
+<td>最终训练与部署</td>
+<td>搜索选出的子网用初始学习率的 1/10 微调 10 epochs；int8 部署前做 10 epochs quantization-aware training</td>
+<td>让最终子网和低精度部署条件适配</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>进化搜索不是“随便试到一个看起来不错的”。约束先排除装不进 SRAM/Flash 或 latency 超限的候选，验证集精度用于排序；交叉和变异产生下一代。它比穷举便宜，但仍依赖搜索空间、共享权重评估和验证设置，所以论文的“最优”应理解为<strong>在该搜索过程和候选空间里找到的最佳可行方案</strong>。</p>
+<p>作者还解释了为什么将 width multiplier (w) 和分辨率 (r) 放进搜索空间：任务可能更需要高分辨率，而不是更宽的网络；两者直接参与搜索，比先固定好 (w,r) 再搜索 block 更灵活。MobileNetV3 的 Swish 激活在作者当时的 MCU int8 部署路径上更难量化，因此论文采用与 MnasNet、MCUNet 更接近的搜索空间。这个选择反映的是部署可行性，不是说 MobileNetV3 对所有平台都不好。</p>
+<h2 id="实验先分口径：解析估计与板端测量不是同一回事"><a href="#实验先分口径：解析估计与板端测量不是同一回事" class="headerlink" title="实验先分口径：解析估计与板端测量不是同一回事"></a>实验先分口径：解析估计与板端测量不是同一回事</h2><p>论文的实验分成两种 memory profiling：</p>
+<ul>
+<li><strong>Analytical profiling（解析内存估计）</strong>：按模型结构统计同时需要的输入、输出激活；遇到 residual 等多分支时计算同时存活的分支，共用输入只算一次。作者假设权重可从 Flash 分块读取，因此这个口径主要衡量 activation peak。</li>
+<li><strong>On-device profiling（板端实测）</strong>：在真实推理引擎上测 SRAM 和 Flash，还包含部分权重、im2col 等临时 buffer，因此通常比解析估计更高。</li>
+</ul>
+<p><img src="https://204180371.xyz/PicGo/figure-05-final-page.png" alt=""></p>
+<ul>
+<li><strong>左图 <code>(a) Peak Memory (kB)</code> 比较五种网络的逐层与 4×4 patch 峰值；右图 <code>(b) Computation (M MACs)</code> 比较计算量，并用 <code>+3%</code>、<code>+8%</code>、<code>+10%</code>、<code>+15%</code>、<code>+17%</code> 标出对应开销。所有模型都使用 224×224 输入和 int8 分析。图的左右两幅分别回答“省了多少峰值内存”和“付出多少计算”，不能只保留左图后就说系统整体更好。</strong></li>
+</ul>
+<p>Figure 5 的范围是五种既有网络：MbV2、MbV2-RD、OFA-CPU、MnasNet、FBNet-A。4×4 patch 下解析峰值下降 3.7–8.0 倍；各模型开销不同，普通配置大约 8–17%，MbV2-RD 为 +3%。MnasNet 前段较大的卷积核导致更大的累计 RF 和 patch 重叠，所以开销更高。图支持“方法适用于不止一个 MobileNetV2 结构”，但仍不是对所有网络类型的证明。</p>
+<p><img src="https://204180371.xyz/PicGo/figure-06-final-page.png" alt=""><br><img src="https://204180371.xyz/PicGo/figure-06-reading.png" alt=""></p>
+<ul>
+<li>图例是 <code>Per-layer (w/ TinyEngine)</code>、<code>Per-patch (2×2)</code>、<code>Per-patch (3×3)</code>；网络标签旁的 (w)、(r) 表示 width multiplier 与输入分辨率。作者在 STM32F746 的 320 kB SRAM / 1 MB Flash 约束下，为了放得下会缩小 width 和 resolution。因此 Figure 6 反映可部署配置的板端权衡，不是只改变调度、其余完全固定的纯消融。</li>
+</ul>
+<p>板端结果中，patch 执行测得 SRAM 大约降低 4–6 倍；但 latency overhead 因网络而异。MbV2-RD 的逐层 latency 是约 540 ms，2×2 和 3×3 patch 分别约 562、564 ms，增加约 4%；原始 MbV2 从约 617 ms 增到约 711、741 ms，开销更大。作者指出 patch stage 的硬件利用率可能更差，所以 MACs 增长比例不等于 latency 增长比例。</p>
+<p>这正好回应了我自己的判断：如果设备内存已经满足、任务又优先低 latency，就不必为了追求更低 SRAM 强行采用会增加延迟的方案。方法是否值得用，要先看真正的瓶颈和任务目标。</p>
+<h2 id="联合设计结果：精度提高不等于单靠调度白赚"><a href="#联合设计结果：精度提高不等于单靠调度白赚" class="headerlink" title="联合设计结果：精度提高不等于单靠调度白赚"></a>联合设计结果：精度提高不等于单靠调度白赚</h2><h3 id="ImageNet：同精度比较要看-precision-和资源列"><a href="#ImageNet：同精度比较要看-precision-和资源列" class="headerlink" title="ImageNet：同精度比较要看 precision 和资源列"></a>ImageNet：同精度比较要看 precision 和资源列</h3><p>论文 Table 2 分别列出 STM32F412（256 kB SRAM / 1 MB Flash）和 STM32H743（512 kB SRAM / 2 MB Flash）的 ImageNet 结果。下面只重排 int8 MCUNet 与 MCUNetV2，保证量化类型一致：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>MCU</th>
+<th>模型</th>
+<th style="text-align:right">Precision</th>
+<th style="text-align:right">MACs</th>
+<th style="text-align:right">SRAM</th>
+<th style="text-align:right">Flash</th>
+<th style="text-align:right">Top-1</th>
+<th style="text-align:right">Top-5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F412</td>
+<td>MCUNet</td>
+<td style="text-align:right">int8</td>
+<td style="text-align:right">68M</td>
+<td style="text-align:right">238 kB</td>
+<td style="text-align:right">1007 kB</td>
+<td style="text-align:right">60.3%</td>
+<td style="text-align:right">未报告</td>
+</tr>
+<tr>
+<td>F412</td>
+<td>MCUNetV2-M4</td>
+<td style="text-align:right">int8</td>
+<td style="text-align:right">119M</td>
+<td style="text-align:right">196 kB</td>
+<td style="text-align:right">1010 kB</td>
+<td style="text-align:right">64.9%</td>
+<td style="text-align:right">86.2%</td>
+</tr>
+<tr>
+<td>H743</td>
+<td>MCUNet</td>
+<td style="text-align:right">int8</td>
+<td style="text-align:right">126M</td>
+<td style="text-align:right">452 kB</td>
+<td style="text-align:right">2014 kB</td>
+<td style="text-align:right">68.5%</td>
+<td style="text-align:right">未报告</td>
+</tr>
+<tr>
+<td>H743</td>
+<td>MCUNetV2-H7</td>
+<td style="text-align:right">int8</td>
+<td style="text-align:right">256M</td>
+<td style="text-align:right">465 kB</td>
+<td style="text-align:right">2032 kB</td>
+<td style="text-align:right">71.8%</td>
+<td style="text-align:right">90.7%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>F412 上 MCUNetV2-M4 比 int8 MCUNet 高 4.6 个 Top-1 百分点，SRAM 238→196 kB，但 MACs 68M→119M。H743 上高 3.3 个百分点，MACs 126M→256M，而且 SRAM 452→465 kB。由此不能说 MCUNetV2 在所有平台上同时降低 SRAM、计算量又提高精度；准确说法是它在各自约束下，通过扩展可行网络与调度搜索，找到精度更高的 int8 方案，其中某些资源指标上升。</p>
+<p>Table 2 里还有 int4 和 mixed-precision 行。它们使用不同量化精度，不能和 int8 行直接当作同条件的调度比较；应先明确比较目标是精度、位宽还是硬件资源。</p>
+<p><img src="https://204180371.xyz/PicGo/figure-07-final-page.png" alt=""></p>
+<ul>
+<li><strong>左图横轴 measured peak SRAM、纵轴 VWW accuracy；右图横轴 measured latency、纵轴 accuracy。图上虚线标示 <code>SRAM &lt; 320 kB</code> 与 <code>Flash &lt; 1 MB</code> 的可行区，曲线/点展示 accuracy–resource trade-off。Figure 7 不是“一个模型每个指标都赢”，而是在给定预算下 MCUNetV2 扩大可选解空间；图中也显示可在小于 32 kB SRAM 下达到 90% 以上</strong> VWW accuracy。</li>
+</ul>
+<h3 id="Pascal-VOC：准确率与资源一起读"><a href="#Pascal-VOC：准确率与资源一起读" class="headerlink" title="Pascal VOC：准确率与资源一起读"></a>Pascal VOC：准确率与资源一起读</h3><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>MCU / 约束</th>
+<th>模型</th>
+<th style="text-align:right">参数量</th>
+<th style="text-align:right">MACs</th>
+<th style="text-align:right">Peak SRAM</th>
+<th style="text-align:right">VOC mAP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H743 / &lt;512 kB</td>
+<td>MbV2 + CMSIS</td>
+<td style="text-align:right">0.87M</td>
+<td style="text-align:right">34M</td>
+<td style="text-align:right">519 kB</td>
+<td style="text-align:right">31.6%</td>
+</tr>
+<tr>
+<td>H743 / &lt;512 kB</td>
+<td>MCUNet</td>
+<td style="text-align:right">1.20M</td>
+<td style="text-align:right">168M</td>
+<td style="text-align:right">466 kB</td>
+<td style="text-align:right">51.4%</td>
+</tr>
+<tr>
+<td>H743 / &lt;512 kB</td>
+<td>MCUNetV2-H7</td>
+<td style="text-align:right">0.67M</td>
+<td style="text-align:right">343M</td>
+<td style="text-align:right">438 kB</td>
+<td style="text-align:right">68.3%</td>
+</tr>
+<tr>
+<td>F412 / &lt;256 kB</td>
+<td>MCUNetV2-M4</td>
+<td style="text-align:right">0.47M</td>
+<td style="text-align:right">172M</td>
+<td style="text-align:right">247 kB</td>
+<td style="text-align:right">64.6%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>H743 上 (68.3-51.4=16.9)，所以表格与摘要所支持的差值是 <strong>16.9 个百分点</strong>。正文某处写成 16.7；两处不一致应明确标出来。严格说，百分点是两个百分率直接相减；如果说“相对提升百分比”，分母还要用原始 51.4%，不能把两种口径混用。</p>
+<p>M4 的 MCUNetV2-M4 是 172M MACs、64.6 mAP；MCUNet 是 168M MACs、51.4 mAP，计算量相近，mAP 高 13.2 个百分点，SRAM 约为 247 kB。H7 则从 168M 增到 343M MACs，所以 H7 的精度提升不能全归因于调度；整体结果是网络结构、输入分辨率、搜索和训练共同作用。</p>
+<h3 id="WIDER-FACE：注意内存精度和测试口径"><a href="#WIDER-FACE：注意内存精度和测试口径" class="headerlink" title="WIDER FACE：注意内存精度和测试口径"></a>WIDER FACE：注意内存精度和测试口径</h3><p>论文还在 WIDER FACE 做了人脸检测。主文 Table 4 报告的是 640×480 RGB 输入下 backbone 的 <strong>fp32 analytical memory</strong>，不是前面 Cortex-M 实测 SRAM。下面保留能看出高、低预算两组关系的行：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align:right">MACs</th>
+<th style="text-align:right">Peak memory（fp32 解析）</th>
+<th>mAP Easy / Medium / Hard</th>
+<th>mAP（≤3 faces）Easy / Medium / Hard</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RNNPool-Face-C</td>
+<td style="text-align:right">1.80G</td>
+<td style="text-align:right">6.44 MB（3.4×）</td>
+<td>0.92 / 0.89 / 0.70</td>
+<td>0.95 / 0.94 / 0.92</td>
+</tr>
+<tr>
+<td>MCUNetV2-L</td>
+<td style="text-align:right">1.10G</td>
+<td style="text-align:right">1.89 MB（1.0×）</td>
+<td>0.92 / 0.90 / 0.70</td>
+<td>0.94 / 0.93 / 0.92</td>
+</tr>
+<tr>
+<td>EagleEye</td>
+<td style="text-align:right">0.08G</td>
+<td style="text-align:right">1.17 MB（1.8×）</td>
+<td>0.74 / 0.70 / 0.44</td>
+<td>0.79 / 0.78 / 0.75</td>
+</tr>
+<tr>
+<td>RNNPool-Face-A</td>
+<td style="text-align:right">0.10G</td>
+<td style="text-align:right">1.17 MB（1.8×）</td>
+<td>0.77 / 0.75 / 0.53</td>
+<td>0.81 / 0.79 / 0.77</td>
+</tr>
+<tr>
+<td>MCUNetV2-S</td>
+<td style="text-align:right">0.11G</td>
+<td style="text-align:right">672 kB（1.0×）</td>
+<td>0.85 / 0.81 / 0.55</td>
+<td>0.90 / 0.89 / 0.87</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>大模型 MCUNetV2-L 与 RNNPool-Face-C 的 mAP 接近，报告的解析峰值内存约小 3.4 倍；小模型 MCUNetV2-S 也比 EagleEye 和 RNNPool-Face-A 有更高 mAP，同时峰值内存更低。补充材料还比较了 int8 量化结果，例如 MCUNetV2-S 168 kB、RNNPool-Face-Quant 225 kB；这不能和主文 fp32 解析内存直接混成同一口径。</p>
+<h2 id="p-和-n-不是越大越好"><a href="#p-和-n-不是越大越好" class="headerlink" title="(p) 和 (n) 不是越大越好"></a>(p) 和 (n) 不是越大越好</h2><p>patch 调度里两个重要变量是：(p)，每个方向分成多少个 patch、总数为 (p^2)；(n)，前多少个网络 block/layer 采用 patch-based，后段恢复 per-layer。</p>
+<p><img src="https://204180371.xyz/PicGo/figure-08-final-page.png" alt=""></p>
+<ul>
+<li>图 <code>(a)</code> 的横轴一组是 patch-based block 数 (n)，用 (p=4) 固定，左纵轴看 peak memory，右纵轴看 patch size；曲线显示 (n) 增大时，峰值先降后升，而 patch size 会因累计 RF 增大而扩张。中间图固定 (n=5)，横轴 (p) 逐渐增大，峰值内存下降。右图 <code>(b)</code> 以 (p) 为横轴、computation overhead 为纵轴，比较 MbV2 与 MbV2-RD；patch 越多，重叠开销通常越高，重分配可压低它。</li>
+</ul>
+<p>对 MobileNetV2，论文选 (n^<em>=5,p^</em>=4)：前五个 block 采用 patch 推理，输入图切成 4×4 共 16 个 patch。(n) 太小，可能还没绕过最初峰值；(n) 太大，RF 和 halo 增长会把 patch 再撑大，峰值反而回升。固定 (n) 后增加 (p) 可以缩小单块工作区，但边界数量更多、重复计算也更多。因此搜索要选可行且代价合适的组合，不是把 patch 数开到最大。</p>
+<h2 id="为什么不直接用不重叠-patch-或其他省内存方法"><a href="#为什么不直接用不重叠-patch-或其他省内存方法" class="headerlink" title="为什么不直接用不重叠 patch 或其他省内存方法"></a>为什么不直接用不重叠 patch 或其他省内存方法</h2><p>最直观的办法是把输入切成不重叠区域。它没有 halo，也没有重算，却会切断 patch 边界的信息传播，改变卷积网络原有的空间关系。论文 Table 5 用 MobileNetV2 对照了这种做法、RNNPool 和 MbV2-RD：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>执行方式</th>
+<th style="text-align:center">保持推理不变性</th>
+<th style="text-align:right">Peak memory（fp32）</th>
+<th style="text-align:right">训练时间</th>
+<th style="text-align:right">ImageNet Top-1</th>
+<th style="text-align:right">VOC mAP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MbV2</td>
+<td>Per-layer</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:right">2.29 MB</td>
+<td style="text-align:right">1.0×</td>
+<td style="text-align:right">72.2%</td>
+<td style="text-align:right">75.4%</td>
+</tr>
+<tr>
+<td>Non-overlap</td>
+<td>Per-patch</td>
+<td style="text-align:center">✗</td>
+<td style="text-align:right">0.19 MB</td>
+<td style="text-align:right">1.0×</td>
+<td style="text-align:right">71.8%</td>
+<td style="text-align:right">73.9%</td>
+</tr>
+<tr>
+<td>MbV2-RNNPool</td>
+<td>Streaming</td>
+<td style="text-align:center">✗</td>
+<td style="text-align:right">0.24 MB</td>
+<td style="text-align:right">3.2×</td>
+<td style="text-align:right">70.1%</td>
+<td style="text-align:right">71.0%</td>
+</tr>
+<tr>
+<td>MbV2-RD</td>
+<td>Per-patch</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:right">0.19 MB</td>
+<td style="text-align:right">1.0×</td>
+<td style="text-align:right">72.1%</td>
+<td style="text-align:right">75.7%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这个表让“为什么要带 halo”更具体：不重叠 patch 内存很低，但 VOC mAP 从 75.4% 掉到 73.9%；MbV2-RD 保持跨 patch 依赖，训练方式仍是普通逐层 forward/backward，因此在这组实验里保住了分类和检测表现。所谓 inference invariant，是说推理输出保持与常规网络一致的性质；非重叠切块会打破它。RNNPool 同样减少内存，却有更低指标和 3.2× 训练时间。论文并不是没想到“彻底不重算”，而是这种做法要付出信息传播或复杂数据流的代价。</p>
+<h2 id="Figure-9：搜索自动找到的结构有什么规律"><a href="#Figure-9：搜索自动找到的结构有什么规律" class="headerlink" title="Figure 9：搜索自动找到的结构有什么规律"></a>Figure 9：搜索自动找到的结构有什么规律</h2><p>Figure 9 展示一个 VWW 网络结构实例。它的目的不是宣布一套固定设计规则，而是让读者看看 joint search 选出的网络在 patch/per-layer 分界两侧有什么模式。</p>
+<p><img src="https://204180371.xyz/PicGo/figure-09-reading.png" alt=""></p>
+<ul>
+<li>图例说明颜色表示 kernel size；每个 block 的高度表示 expansion ratio；<code>MB&#123;ratio&#125; &#123;kernel&#125;×&#123;kernel&#125;</code> 是命名格式；虚线边框表示 stride=2；底部的 160×160、80×80 等表示 feature-map 分辨率。加一条竖线标出 per-patch 与 per-layer 的切换位置，有助于读者把结构图连回 (n)。</li>
+</ul>
+<p>作者从搜索结果观察到：patch 前段多用 1×1、3×3 小 kernel 来减小 RF 和空间重叠；刚进入 per-layer 的中段可能用小 expansion ratio 降峰值；后段用更大的 expansion ratio 提升能力；大 expansion 与大 kernel 很少同时出现，以控制计算和 latency；VWW 对分辨率敏感，因此搜索保留较高分辨率。这些是该任务和搜索空间中观察到的模式，不是所有 MCU 网络都必须遵循的经验法则。</p>
+<h2 id="这篇论文到底贡献了什么"><a href="#这篇论文到底贡献了什么" class="headerlink" title="这篇论文到底贡献了什么"></a>这篇论文到底贡献了什么</h2><p>读 Related Work 和 Conclusion 时，我会把贡献说成三个层次：</p>
+<ol>
+<li><strong>核心运行时方法：</strong> 对前段高内存区域做 patch-by-patch、跨层推理，让高分辨率中间 activation 不必整张同时物化。</li>
+<li><strong>代价缓解：</strong> 输入 halo 导致重叠计算，作者重分配前后段的感受野，减少被多个 patch 重复执行的计算。</li>
+<li><strong>适配不同任务和预算：</strong> 把网络结构变量与调度参数 ((p,n)) 一起放进 joint NAS，在给定 SRAM、Flash、latency 约束下搜索高精度候选。</li>
+</ol>
+<p>所以学长说要重点讲运行时是对的：先讲清 patch scheduling 改变了怎样的实际推理行为，再说明 RF redistribution 和 NAS 为什么围绕它服务。只说“整合了很多已有方案”会淡化论文中心；只说“发明了全新网络”又不准确。另一方面，Related Work 里也承认跨层局部计算有过前作，所以不应把逐空间块计算说成历史上第一次出现。更稳妥的贡献描述是：<strong>MCUNetV2 以 patch-based inference scheduling 为核心，将其与感受野重分配、架构—调度联合搜索结合，面向 MCU 峰值激活约束取得了较低的重算开销与任务结果。</strong></p>
+<h2 id="我现在会怎样审查论文的结论"><a href="#我现在会怎样审查论文的结论" class="headerlink" title="我现在会怎样审查论文的结论"></a>我现在会怎样审查论文的结论</h2><p>这篇论文的证据链比较完整，但每张图表回答的问题不同：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>证据</th>
+<th>主要回答什么</th>
+<th>不能单独推出什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Figure 1</td>
+<td>峰值是否集中在网络前段；固定网络 patch 后解析峰值降多少</td>
+<td>所有网络都降 8×，或 latency 也变快 8×</td>
+</tr>
+<tr>
+<td>Figure 2</td>
+<td>检测与分类对输入分辨率的趋势敏感性</td>
+<td>大目标一定比小目标稳定；所有类别受到同等影响</td>
+</tr>
+<tr>
+<td>Figure 3 / Table 1</td>
+<td>patch 调度的执行过程、重叠计算和 MbV2-RD 代价</td>
+<td>重分配对所有模型都不掉精度</td>
+</tr>
+<tr>
+<td>Figure 5</td>
+<td>多个网络的解析内存和 MACs 比较</td>
+<td>MCU 实测 SRAM 与 latency 就等于柱状图</td>
+</tr>
+<tr>
+<td>Figure 6</td>
+<td>STM32F746 上的实测 SRAM 与 latency</td>
+<td>这是只变调度的完全同配置消融；结果可直接迁移到 NPU</td>
+</tr>
+<tr>
+<td>Tables 2–4 / Figure 7</td>
+<td>搜索后模型在 ImageNet、VWW、VOC、WIDER FACE 上的表现</td>
+<td>全部精度提升都由 patch scheduling 单独造成</td>
+</tr>
+<tr>
+<td>Figure 8–9 / Table 5</td>
+<td>调度超参数、备选方案和搜索结构的行为</td>
+<td>搜索算法保证找到全局最优网络</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>还有几处数字要按原文口径谨慎说：</p>
+<ul>
+<li>解析 Figure 5 使用 224×224、int8、4×4 patch；板端 Figure 6 在 STM32F746 受 SRAM/Flash 限制时缩小了 width 与 resolution，二者不是可以直接相减归因的一组完全相同模型。</li>
+<li>VWW 的 <code>&gt;90% under 32 kB SRAM</code> 是任务结果，不代表所有 MCU 视觉任务都能以 32 kB 达到同等精度。</li>
+<li>VOC H7 的正文有 16.7 与摘要/Table 3 的 16.9 差异；表中 68.3−51.4 为 16.9 个百分点。</li>
+<li>ImageNet 上 H7 的 MCUNetV2 使用 256M MACs，MCUNet int8 是 126M；精度更高的比较不是等 MACs 对照。</li>
+<li>Figure 2 的最终 PDF 读数 228 与阅读版源图的 288 不一致；不要靠猜测修图或用这个刻度计算新的斜率。</li>
+</ul>
+<p>这使我不会把结论讲成“MCUNetV2 什么指标都赢了”。它证明的是：当主要瓶颈来自前段完整 activation 时，改变运行时调度可以降低峰值 SRAM；多出的 overlap 计算需要认真处理；在论文测试的网络、训练、设备和预算下，联合搜索进一步找到精度更高的可行模型。</p>
+<h2 id="它适用于什么情况，又不适用于什么情况"><a href="#它适用于什么情况，又不适用于什么情况" class="headerlink" title="它适用于什么情况，又不适用于什么情况"></a>它适用于什么情况，又不适用于什么情况</h2><p>如果模型确实被前几层高分辨率 activation 卡住，而且目标运行时允许控制 patch 数据流，那么 MCUNetV2 的思路值得试。若内存已经够用、任务优先低延迟，而 patch 方案会增加重复计算，就不一定值得采用；若峰值主要来自 NPU workspace、DMA buffer 或不支持分块的算子，paper 的 CNN activation 机制也未必对症。</p>
+<p>论文主要在 Cortex-M4/M7 MCU 上验证。迁移到 STM32N6570 这类带 NPU 和多块 SRAM 的平台，得先测总 SRAM 中有多少实际可给模型使用、CPU/NPU/DMA 能访问哪些 bank、编译器是否允许控制 patch 执行、中间 tensor 是否需要 layout conversion、哪些算子会 fallback 到 CPU，以及增加的数据搬运与同步成本。MCU 上“装不下完整激活”的动机，不能未经 profile 就搬到另一个架构上。</p>
+<p>我完成的是论文机制、附录搜索流程、图表数字和适用边界的学习与核对；没有完成官方代码核查、搜索复现或板端测量。论文里的 1372→172 kB、71.8% Top-1、68.3% mAP 是作者的结果，不是我的实验数据。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>我现在会把 MCUNetV2 讲成这样：常规逐层执行会在 CNN 前段同时保留高分辨率输入与输出 activation，造成峰值 SRAM；patch-by-patch scheduling 让前段局部区域跨层计算，降低同时驻留的数据。为了保持卷积边界输出正确，输入 patch 需要带重叠 halo，因而增加重复 MACs。感受野重分配缩小被重复执行的前段 RF，并在后段补回部分感受野；joint NAS 则在部署前一起选择网络与调度参数 ((p,n))，使候选满足资源约束并争取更高准确率。</p>
+<p>我从这篇文章里带走的不是“分块一定更快”，而是一套检查顺序：先确认瓶颈属于权重、activation 还是 workspace；再追踪哪些数据在什么时候必须同时存在；接着算出调度改变带来的重叠和计算成本；最后核对图表比较的模型、分辨率、位宽、硬件和指标是否一致。只有这些条件都对上，内存数字才会变成有用的系统结论。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Ji Lin, Wei-Ming Chen, Han Cai, Chuang Gan, Song Han. <a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Paper.pdf"><em>MCUNetV2: Memory-Efficient Patch-based Inference for Tiny Deep Learning</em></a>. NeurIPS 2021.</li>
+<li><a target="_blank" rel="noopener" href="https://proceedings.neurips.cc/paper_files/paper/2021/file/1371bccec2447b5aa6d96d2a540fb401-Supplemental.pdf">Supplementary Material</a>.</li>
+<li><a target="_blank" rel="noopener" href="https://hanlab.mit.edu/projects/mcunetv2">MCUNetV2 project page</a>.</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/mit-han-lab/mcunet">Official MCUNet code repository</a>.</li>
+</ul>
+</article><footer class="literature-footer"><p>个人文献阅读笔记，不代表任何学校、机构或论文作者的官方立场。</p></footer></main></body></html>
