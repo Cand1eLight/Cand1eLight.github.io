@@ -5,15 +5,15 @@
   },
   options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
 };</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
-</head><body class="literature-portal"><div class="literature-pattern" aria-hidden="true"></div><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>从 .tflite 到一次完整推理：我如何读懂 TensorFlow Lite Micro</h1><p class="report-summary">沿着模型转换、算子注册、Tensor Arena、静态内存规划与执行调度，梳理 TFLM 如何在资源受限的 MCU 上完成一次推理，并结合论文图表辨析性能结论与适用边界。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-21T04:00:00.000Z">2026-09-21</time></span><span><strong>论文</strong><em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em></span><span><strong>领域</strong><em>TinyML · TensorFlow Lite Micro · MCU 推理</em></span></div></header><article class="literature-article"><p><img src="/literature-reports/tflm/tflm-system-overview.png" alt="TensorFlow Lite Micro 系统流程概览"></p>
-<p>我第一次读 <em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em> 时，几乎还没有学过 MCU 推理框架。那时我大概知道模型要放进开发板，却说不清 <code>.tflite</code> 里面到底是什么、Interpreter 为什么叫解释器、算子如何找到 kernel，更说不清 Figure 4 里的 A、B、C、D 为什么形状不同。</p>
-<h2 id="论文信息"><a href="#论文信息" class="headerlink" title="论文信息"></a>论文信息</h2><ul>
+</head><body class="literature-portal"><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>从 .tflite 到一次完整推理：我如何读懂 TensorFlow Lite Micro</h1><p class="report-summary">沿着模型转换、算子注册、Tensor Arena、静态内存规划与执行调度，梳理 TFLM 如何在资源受限的 MCU 上完成一次推理，并结合论文图表辨析性能结论与适用边界。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-07T04:00:00.000Z">2026-09-07</time></span><span><strong>论文</strong><em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em></span><span><strong>领域</strong><em>TinyML · TensorFlow Lite Micro · MCU 推理</em></span></div></header><article class="literature-article"><h2 id="论文信息"><a href="#论文信息" class="headerlink" title="论文信息"></a>论文信息</h2><ul>
 <li><strong>作者：</strong> Robert David、Jared Duke、Advait Jain、Vijay Janapa Reddi、Nat Jeffries、Jian Li、Nick Kreeger、Ian Nappier、Meghna Natraj、Shlomi Regev、Rocky Rhodes、Tiezhen Wang、Pete Warden</li>
 <li><strong>版本：</strong> MLSys 2021 正式论文；arXiv 预印本 arXiv:2010.08678（2020）。</li>
 <li><strong>原文：</strong> <a target="_blank" rel="noopener" href="https://proceedings.mlsys.org/paper_files/paper/2021/hash/6c44dc73014d66ba49b28d483a8f8b0d-Abstract.html">MLSys 2021 论文记录</a> · <a target="_blank" rel="noopener" href="https://proceedings.mlsys.org/paper_files/paper/2021/file/6c44dc73014d66ba49b28d483a8f8b0d-Paper.pdf">论文 PDF</a> · <a target="_blank" rel="noopener" href="https://arxiv.org/abs/2010.08678">arXiv 页面</a></li>
 <li><strong>题名说明：</strong> MLSys 题录页写作 “for TinyML Systems”，正式论文 PDF 与 arXiv 页面写作 “on TinyML Systems”；此处题名遵循正式 PDF。</li>
 <li><strong>代码：</strong> <a target="_blank" rel="noopener" href="https://github.com/tensorflow/tflite-micro">TensorFlow Lite Micro 官方代码库</a></li>
 </ul>
+<p><img src="https://204180371.xyz/PicGo/20260921150025430.png" alt="TensorFlow Lite Micro 系统流程概览"></p>
+<p>我第一次读 <em>TensorFlow Lite Micro: Embedded Machine Learning on TinyML Systems</em> 时，几乎还没有学过 MCU 推理框架。那时我大概知道模型要放进开发板，却说不清 <code>.tflite</code> 里面到底是什么、Interpreter 为什么叫解释器、算子如何找到 kernel，更说不清 Figure 4 里的 A、B、C、D 为什么形状不同。</p>
 <p>后来学长追问 Figure 4，我没把坐标轴、内存大小和生命周期讲明白，这篇论文也就被打回来重读了。现在重新回看，这次卡住反而挺有价值：它逼着我把“模型格式—算子注册—内存规划—推理调度—平台优化”整条链真正连了起来。</p>
 <p>我现在对 TFLM 的一句话理解是：</p>
 <blockquote>
@@ -125,7 +125,7 @@ W'=\alpha W,\qquad b'=\alpha(b-\mu)+\beta</script><p>实际卷积通常按输出
 <p>论文把这次调用设计成阻塞式：整个模型执行结束后函数才返回。MCU 可以用中断处理更紧急的任务，外部 RTOS 也可以从某个任务中调用它。</p>
 <p><img src="https://204180371.xyz/PicGo/20260921140018353.png" alt="对应时序图"></p>
 <blockquote>
-<p><strong>配图位置 4：</strong>紧接 Figure 2 放一张自制时序图，显示 Application 写输入、调用 <code>Interpreter::Invoke()</code>、逐节点调用 kernel、返回输出。这个图能把“两层 Invoke”讲清楚。</p>
+<p>显示 Application 写输入、调用 <code>Interpreter::Invoke()</code>、逐节点调用 kernel、返回输出。这个图能把“两层 Invoke”讲清楚。</p>
 </blockquote>
 <h2 id="为什么一定要在运行前把内存安排好"><a href="#为什么一定要在运行前把内存安排好" class="headerlink" title="为什么一定要在运行前把内存安排好"></a>为什么一定要在运行前把内存安排好</h2><p>很多 MCU 没有可靠的通用 heap。即使可以调用 <code>malloc()</code>，长时间反复分配和释放也会引入碎片与不可预测失败。TFLM 要求应用提供一块连续的固定大小内存，也就是 Tensor Arena。</p>
 <p>初始化时，Interpreter 根据模型和各算子的需求从 Arena 分配全部运行内存。正常的模型调用阶段不再通过 TFLM 的机制申请新空间。若某个算子执行到一半才临时申请 1 MB，它会破坏两个核心保证：峰值内存在运行前可知，以及长时间运行不受 heap 碎片影响。</p>
@@ -436,9 +436,7 @@ S_{VWW,DSP}=\frac{387,341.8}{49,952.3}\approx7.75</script><p>这与论文概括�
 <script type="math/tex; mode=display">
 26.50+55.30=81.80\text{ kB}</script><p>而表中总量为 81.79 kB，相差 0.01 kB。论文没有解释这个差异；可能与未显示精度或独立舍入有关，但仅凭表格不能确定原因。无论如何，不能因此把 26.50 kB 当成总量。</p>
 <p>三种模型的内存构成差异也很有意思：小型卷积模型和 VWW 的中间 activation 较大，nonpersistent 占主导；Hotword 的 nonpersistent 只有 680 bytes，persistent 反而占主要部分。论文没有继续细分 Hotword 的 12.12 kB，因此仅凭表格不能断言它全部来自某一类状态。</p>
-<blockquote>
-<p><strong>配图位置 8：</strong>可直接重绘论文 Table 3 为堆叠柱状图，persistent 与 nonpersistent 使用两种颜色，柱顶标总量。VWW 柱必须标 81.79 kB，不能只标 26.5 kB。</p>
-</blockquote>
+<p><img src="https://204180371.xyz/PicGo/20260921145956971.png" alt=""></p>
 <h2 id="Benchmark-和-Profiler-解决的是两件事"><a href="#Benchmark-和-Profiler-解决的是两件事" class="headerlink" title="Benchmark 和 Profiler 解决的是两件事"></a>Benchmark 和 Profiler 解决的是两件事</h2><p>Benchmark 提供固定模型、输入和测量规则，用于公平比较不同硬件与 kernel。论文写的是 MLPerf 采用了 TFLM 的 benchmark；tinyMLPerf 则在这类 benchmark 上加入准确率指标。两者不要合并说成同一条准确率规则。</p>
 <p>Profiler 用来回答“时间花在哪里”。TFLM 提供插桩 hook，开发者可以找到性能关键路径和瓶颈算子，再决定是替换 kernel、调整模型，还是检查数据搬运。</p>
 <p>如果一个模型总延迟为：</p>
