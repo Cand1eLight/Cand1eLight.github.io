@@ -1,0 +1,99 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light"><meta name="description" content="从层内瓶颈画像、kernel 选择与切片，到预加载感知的跨层内存规划和双线程执行，梳理 FlexNN 如何在给定内存预算下权衡峰值内存、I/O 等待与推理延迟。"><link rel="shortcut icon" href="https://204180371.xyz/PicGo/youzi.png"><title>我以为 FlexNN 只是切分权重：读懂层内瓶颈与预加载规划以后 | 文献阅读报告</title><link rel="stylesheet" href="/literature-reports/assets/literature-reports.css"><script>window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']]
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};</script><script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="祝炩烟's Blog" type="application/atom+xml">
+</head><body class="literature-portal"><main class="literature-shell literature-report-shell"><header class="report-masthead"><a class="report-section-link" href="/literature-reports/">文献阅读报告</a><p class="literature-eyebrow">Paper Reading Report</p><h1>我以为 FlexNN 只是切分权重：读懂层内瓶颈与预加载规划以后</h1><p class="report-summary">从层内瓶颈画像、kernel 选择与切片，到预加载感知的跨层内存规划和双线程执行，梳理 FlexNN 如何在给定内存预算下权衡峰值内存、I/O 等待与推理延迟。</p><div class="report-facts"><span><strong>阅读日期</strong><time datetime="2026-09-28T16:00:00.000Z">2026-09-29</time></span><span><strong>论文</strong><em>FlexNN: Efficient and Adaptive DNN Inference on Memory-Constrained Edge Devices</em></span><span><strong>领域</strong><em>端侧深度学习 · 内存管理 · 层内切分与预加载</em></span></div></header><article class="literature-article"><p>读完 TensorFlow Lite Micro、MCUNetV2、StreamNet 和 vMCU，我已经习惯从“输入和输出激活能否同时放进内存”出发看问题。因此，初读 <em>FlexNN: Efficient and Adaptive DNN Inference on Memory-Constrained Edge Devices</em> 时，我也试图用“前段特征图太大，所以切 patch”解释它。看到论文的 Figure 1 中 VGG-19 和 ResNet-152 的后段出现高柱子，又以为本文换成了“后段计算量大”的问题。这两次理解都太快了：<strong>内存峰值的位置，取决于模型、算子实现、权重何时驻留，以及统计的究竟是哪一种内存。</strong></p>
+<p>FlexNN 的问题更具体：在移动 CPU 上，既要让单层运行所需的激活、权重和临时数据满足给定预算，又要让整网在这些数据不断产生、加载和释放的过程中尽量少等 I/O。它把<strong>层内切分</strong>和<strong>跨层时间—地址规划</strong>连起来，再用加载线程和计算线程按计划执行。本文记录我读这篇论文时几个真正改变理解的问题。图均裁自<a target="_blank" rel="noopener" href="https://www.microsoft.com/en-us/research/wp-content/uploads/2024/07/mobicom24-flexnn.pdf">论文原文</a>；我自己补充的计算和迁移设想会单独说明。</p>
+<h2 id="论文信息"><a href="#论文信息" class="headerlink" title="论文信息"></a>论文信息</h2><ul>
+<li><strong>作者：</strong> Xiangyu Li、Yuanchun Li、Yuanzhe Li、Ting Cao、Yunxin Liu</li>
+<li><strong>作者单位：</strong> Xiangyu Li、Yuanzhe Li：清华大学 Institute for AI Industry Research (AIR)；Yuanchun Li、Yunxin Liu：AIR 与上海人工智能实验室；Ting Cao：Microsoft Research（北京）。</li>
+<li><strong>发表：</strong> ACM MobiCom 2024，页码 709–723；DOI：10.1145/3636534.3649391。</li>
+<li><strong>原文：</strong> <a target="_blank" rel="noopener" href="https://doi.org/10.1145/3636534.3649391">ACM 论文页面</a> · <a target="_blank" rel="noopener" href="https://www.microsoft.com/en-us/research/uploads/prod/2024/07/mobicom24-flexnn.pdf">Microsoft Research PDF</a> · <a target="_blank" rel="noopener" href="https://www.microsoft.com/en-us/research/publication/flexnn-efficient-and-adaptive-dnn-inference-on-memory-constrained-edge-devices/">Microsoft Research 论文介绍</a></li>
+<li><strong>代码与评测：</strong> <a target="_blank" rel="noopener" href="https://github.com/xxxxyu/FlexNN">FlexNN 官方项目仓库</a></li>
+</ul>
+<h2 id="一、先把“层”和“patch”放回同一张图"><a href="#一、先把“层”和“patch”放回同一张图" class="headerlink" title="一、先把“层”和“patch”放回同一张图"></a>一、先把“层”和“patch”放回同一张图</h2><p>这里的<strong>层</strong>是模型计算图中的一个算子节点，如卷积层或全连接层，不是“激活层”的别称。处理某层时，可能同时存在该层输入、输出、权重以及计算临时数据。<strong>Patch</strong> 则是把一个空间范围较大的激活拆成小块来计算的执行粒度。二者回答不同问题：前者问“哪一个算子占内存”，后者问“这个算子的数据怎样分块执行”。完全可以先定位一个卷积层的峰值，再决定是否对它的激活做 patch 处理。</p>
+<p><img src="https://204180371.xyz/PicGo/figure01_layer_memory.png" alt="Figure 1：FlexNN 在转换后的 NCNN 模型中统计逐层内存占用"></p>
+<p>Figure 1 的横轴是模型转换后的 <strong>NCNN</strong> 层编号。NCNN 是面向移动端的神经网络推理框架，FlexNN 在它的运行实现上做扩展。纵轴是<strong>逐层内存占用</strong>，并非每根柱子都表示整网运行时进程的峰值。论文进一步把一层的内存分为三类：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>例子</th>
+<th>我的检查问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>激活</td>
+<td>本层输入、输出，以及跨层仍需保留的张量</td>
+<td>哪些数据在当前时刻必须共存？</td>
+</tr>
+<tr>
+<td>权重</td>
+<td>全连接矩阵、卷积核、Winograd 变换后的权重</td>
+<td>是整层常驻，还是按片加载？</td>
+</tr>
+<tr>
+<td>中间数据</td>
+<td>Im2col 展开矩阵等计算工作区</td>
+<td>这个临时矩阵能否只生成一片？</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这就解释了我和前几篇论文产生的“冲突”。MCUNetV2 关注 MCU 上前段较大的激活峰值，用 patch 缩小同一时刻需要保存的空间范围；vMCU 还追踪算子内部输入片段的最后一次读取，让输出安全复用地址。FlexNN 的 Figure 1 则显示：在<strong>它测试的模型与 NCNN 算子实现</strong>中，一些层的权重或展开后的中间数据特别大。它没有证明“所有模型后段都更耗内存”，也不能把 NCNN 转换本身说成瓶颈成因。定位瓶颈时，必须同时说明模型、算子实现、数据精度和内存统计口径。</p>
+<h2 id="二、为什么同一层换一个-kernel，内存图就变了"><a href="#二、为什么同一层换一个-kernel，内存图就变了" class="headerlink" title="二、为什么同一层换一个 kernel，内存图就变了"></a>二、为什么同一层换一个 kernel，内存图就变了</h2><p>这里的 <strong>kernel</strong> 是“实现某个算子的计算程序”，不是操作系统内核。同一个 $3\times3$ 卷积，可以用直接卷积、Im2col+GeMM 或 Winograd 实现。Im2col 把卷积输入整理成列矩阵，<strong>GeMM</strong> 是通用矩阵乘法；Winograd 用变换减少部分乘法，但需要变换后的数据。不同实现会改变临时内存、权重形式和执行时间。</p>
+<p><img src="https://204180371.xyz/PicGo/figure02_kernel_tradeoff.png" alt="Figure 2：论文示例中三种 3×3 卷积 kernel 的延迟—内存权衡"></p>
+<p>Figure 2 的三个点不是“哪种方法永远最好”的排名。在这组测量里，Direct 用内存最少却最慢，Winograd 最快却最占内存，Im2col+GeMM 位于中间。因此，FlexNN 先尝试满足预算的较快实现，再考虑对该实现的主要内存项切分：Winograd 配合权重切分；不满足预算时尝试 Im2col+GeMM 配合输入展开数据切分；仍失败则退到 Direct。<strong>切什么由瓶颈来自哪里决定，而不是看到“输入大”就统一切原始输入。</strong></p>
+<p>这个选择也有平台边界。切得过小可能破坏向量化和矩阵乘法的有效数据块。<strong>SIMD</strong> 指一条指令并行处理多个数据；<strong>NEON</strong> 是 Arm CPU 上提供 SIMD 能力的一套指令。论文所说的 <em>platform-dependent threshold</em>，就是切片大小必须结合目标平台的向量宽度、缓存行为和 kernel 实测性能来定，不存在跨设备通用的“越小越好”。</p>
+<h2 id="三、Figure-3：离线和在线到底各做什么"><a href="#三、Figure-3：离线和在线到底各做什么" class="headerlink" title="三、Figure 3：离线和在线到底各做什么"></a>三、Figure 3：离线和在线到底各做什么</h2><p><img src="https://204180371.xyz/PicGo/figure03_overview.png" alt="Figure 3：FlexNN 的离线规划与在线执行"></p>
+<p>我一开始把 offline/online 想成设备是否联网。这里它们只是<strong>相对于一次推理运行的两个时间段</strong>：离线规划发生在实际处理输入之前，在线执行在输入到来后按计划完成推理。初始化或预算变化时也可能再次进入规划阶段；“离线”不意味着规划必然发生在开发电脑上，或永远不占用户等待时间。</p>
+<p>沿 Figure 3 读，整个流程是：</p>
+<ol>
+<li><strong>画像（profiling）：</strong>确定各张量大小与生命周期，找出占内存的层和原因。</li>
+<li><strong>层内处理：</strong>为瓶颈层选择 kernel，决定切权重还是切 Im2col 展开数据，并预先完成必要的权重变换。</li>
+<li><strong>内存规划：</strong>在固定预算内安排激活、权重和中间数据的地址，同时决定哪些权重可提前加载。</li>
+<li><strong>在线执行：</strong>加载线程读入权重，计算线程执行层；二者按依赖关系同步，静态分配器把张量映射到计划地址。</li>
+</ol>
+<p>这两半的关系是：前半段改变<strong>每次需要摆放的块有多大</strong>，后半段安排<strong>这些块在何时占据哪些地址</strong>。如果只切分，不处理重叠生命周期和 I/O 等待，内存可能放得下却很慢；如果只规划地址，一块必需的张量本身已大于预算，任何摆法都无济于事。</p>
+<h2 id="四、层内切分：83-和-75-分别省的是什么"><a href="#四、层内切分：83-和-75-分别省的是什么" class="headerlink" title="四、层内切分：83% 和 75% 分别省的是什么"></a>四、层内切分：83% 和 75% 分别省的是什么</h2><p><img src="https://204180371.xyz/PicGo/figure04_weight_slicing.png" alt="Figure 4：全连接层按行切权重，每次只加载一个切片"></p>
+<p>Figure 4 是一个全连接层（<strong>FC，fully connected</strong>）的玩具例子：权重矩阵 $8\times6$，共 $48$ 个元素；输入有 $8$ 个元素，输出有 $6$ 个元素。按行把权重分成六片后，每次内存里只有 $8$ 个权重元素，逐片计算输出。因此图注的 <strong>83% 节省是权重这一项的 $48\rightarrow8$</strong>。如果为帮助理解而假设此时只需同时保存这三项，切分前是 $48+8+6=62$，切分后是 $8+8+6=22$ 个元素；三项总数降低约 $64.5\%$。这不是论文宣称整网峰值下降 83%，也没有计入实际运行中的其他张量与开销。</p>
+<p><img src="https://204180371.xyz/PicGo/figure05_input_slicing.png" alt="Figure 5：Im2col 展开数据按通道分片生成和计算"></p>
+<p>Figure 5 切的是 <strong>Im2col 生成的展开矩阵</strong>。图中的完整展开数据有 $9\times3\times4=108$ 个元素；一次只保留一个通道切片时是 $9\times3=27$ 个元素，所以这一临时数据减少 $75\%$。原始输入、最终输出仍需按依赖关系处理，不能把“临时展开矩阵减少 75%”说成“所有输入输出激活减少 75%”。切片会生成部分结果并合并，片数过多也会增加调度和计算损耗。</p>
+<p>这给我一个重要的边界判断：若<strong>某个必须整体驻留的逻辑激活单项</strong>已经超过可用预算，当前论文的权重切分和 Im2col 临时数据切分未必能让模型运行。下一步应检查是否能改变这个激活的产生与消费顺序，做真正的激活分块、patch 或外存流式处理，并验证跨块依赖。Patch 本身就是激活切分的一种形式，不是“激活切分失败以后才尝试的另一类魔法”。</p>
+<h2 id="五、跨层规划：为什么“总量放得下”仍可能失败"><a href="#五、跨层规划：为什么“总量放得下”仍可能失败" class="headerlink" title="五、跨层规划：为什么“总量放得下”仍可能失败"></a>五、跨层规划：为什么“总量放得下”仍可能失败</h2><p>我曾把内存规划理解为：计算层 1 时顺手把层 2 的权重读进另一块空闲内存，时间到了就用。这个直觉只说对了一半。预加载权重更早进入内存，<strong>它的驻留时间反而变长</strong>；若与其他张量争同一段地址，提前读会造成冲突。规划器同时要决定权重从何时开始加载，以及每块数据放在哪里。</p>
+<p><img src="https://204180371.xyz/PicGo/figure06_planning_comparison.png" alt="Figure 6：动态分配、普通静态分配和考虑预加载的静态规划"></p>
+<p>论文把张量画成二维矩形：横轴是逻辑时间或层序，纵轴是连续内存地址。矩形宽度表示生命周期，竖向高度表示所占字节。两个矩形若在时间上重叠，地址就不能重叠；即使某时刻所有存活张量的字节数之和小于预算，也可能因为地址碎片找不到足够大的<strong>连续空段</strong>。Figure 6 中，动态 first-fit 会碎片化；普通静态规划能避开一部分碎片，却可能让加载等待暴露在关键路径上；考虑预加载的规划在预算内同时安排地址与加载时机。论文给的是轻量启发式算法，不能据此断言找到了全局最优布局。</p>
+<p><img src="https://204180371.xyz/PicGo/figure07_activation_first.png" alt="Figure 7：先安排生命周期较长的激活，给其他张量留连续空间"></p>
+<p>Figure 7 展示了算法的一个关键次序：先放跨层存在的激活，并尽量贴着内存两端，让中间留下较连续的空间。随后逐层安排权重与中间数据。Figure 8 把过程串成五步：确定所有激活；安排层 1；尝试带预加载地安排层 2；层 3 带预加载失败；撤回该层尝试，改为不预加载后成功。Algorithm 1 的核心正是这种逐层备份、尝试和回退。</p>
+<p><img src="https://204180371.xyz/PicGo/figure08_planning_steps.png" alt="Figure 8：预加载规划的五步示例，失败时对当前层回退"></p>
+<p>所以“预加载”并不保证处处发生，也未必降低内存峰值；它的直接目标是把读取时间藏在已有计算时间里，并在地址规划允许时这样做。我的研究记录里那句“总量放得下，未必有连续无冲突的地址”，正是这一节最简洁的判断。</p>
+<h2 id="六、规划好的地址怎样在两个线程里安全执行"><a href="#六、规划好的地址怎样在两个线程里安全执行" class="headerlink" title="六、规划好的地址怎样在两个线程里安全执行"></a>六、规划好的地址怎样在两个线程里安全执行</h2><p><img src="https://204180371.xyz/PicGo/figure09_dependencies.png" alt="Figure 9：加载与计算任务的依赖关系，层 3 加载等待层 2 完成"></p>
+<p>离线图上的“逻辑时刻”并不会自动变成真实执行顺序。Figure 9 里，<code>load(2)</code> 可以与 <code>comp(1)</code> 重叠，因为二者的地址安排允许；而 <code>load(3)</code> 必须等待 <code>comp(2)</code> 释放被复用的内存，因此有 <code>comp(2) &lt; load(3)</code>。这不是要求权重 2 与权重 1 位于相同地址，而是由<strong>各自地址是否冲突及最后使用时刻</strong>决定能否重叠。异步场景下，“已发出计算命令”也不等于输入已完成最后一次读取；真正释放地址必须依据任务完成与同步关系。</p>
+<p>FlexNN 因此把一层拆成加载任务和计算任务，生成依赖约束；类型化静态分配器让权重由加载线程、激活和中间数据由计算线程按计划申请，避免多线程执行顺序把同一张量映射错。论文的实现基于 NCNN 的 Armv8-A CPU 路径，还改动了模型写出、权重预变换、卷积 kernel、加载线程与分配器。它是<strong>系统协同设计</strong>，不能把论文中的一条切分规则原样塞进另一个推理框架，就期望得到相同结果。</p>
+<h2 id="七、实验到底证明了什么"><a href="#七、实验到底证明了什么" class="headerlink" title="七、实验到底证明了什么"></a>七、实验到底证明了什么</h2><p>论文在 Pixel 6 Pro、Mi Mix 2S 和 Raspberry Pi 4B 上测试了六类模型，包括 VGG-19、ResNet-152、MobileNetV2、SqueezeNet、ViT 与 GPT-2。实验用的是 <strong>FP32</strong> 权重和随机输入；比较对象是 NCNN 默认执行、Direct kernel 版本和按需加载版本。论文报告的“设备有 12 GB 内存”与“给 FlexNN 100 MB 或几百 MB 预算”不是同一概念：前者是设备标称 RAM，后者是推理系统可使用的目标额度。</p>
+<p><img src="https://204180371.xyz/PicGo/figure10_tradeoffs.png" alt="Figure 10：三台设备、六个模型的延迟—内存点和 FlexNN 预算曲线"></p>
+<p>Figure 10 最重要的读法不是找一个最大百分比，而是<strong>沿蓝色曲线看预算缩小时延迟如何变化</strong>，再在相同设备与模型上比较三个基线点。论文的标题性结果来自 Pixel 6 Pro 上 ResNet-152 的一个配置：相对 NCNN-Default，峰值内存下降 <strong>93.81%</strong>，延迟增加 <strong>3.64%</strong>。这是特定模型、设备、预算和基线下的点，不能写成所有模型的保证。卷积网络通常更有利；Transformer 的矩阵权重、注意力计算和 I/O 结构不同，图中的收益不完全一样，Raspberry Pi 上的读取带宽也限制了隐藏加载时间的效果。</p>
+<p><img src="https://204180371.xyz/PicGo/table2_costs.png" alt="Table 2：三种模型的变换后权重存储和三类离线耗时"></p>
+<p>Table 2 让我纠正了另一个直觉：<strong>权重存储量或层数的一个数字，并不能直接预测规划耗时。</strong>在表列的预算下，VGG-19 的内存规划为 5.27 ms，ResNet-152 为 864.67 ms；但 ResNet-152 的变换后权重存储量反而更小（547 MB 对 781 MB）。规划耗时还与张量数量、生命周期、地址冲突和回退过程有关，这是从算法结构推测的影响因素；论文没有给出逐项耗时剖析，不能断言究竟哪一项造成了这 164 倍左右的差距。表中“变换后权重存储”是文件/存储开销，不是同等大小的常驻内存。</p>
+<p>论文还分别分析了切片大小、能耗和消融实验。Figure 11 说明 Im2col 切片并非越小越快，作者在其实现中选择适于向量化与预加载的粒度；Figure 12 显示省内存没有免费午餐，Pixel 6 Pro 的能量开销在所测 VGG-19 上可达 <strong>28.39%</strong>；Figure 13 则表明静态分配和预加载都影响延迟。它们支持方法链条中的各个环节，但不能代替对新设备做完整测量。</p>
+<p><img src="https://204180371.xyz/PicGo/figure14_adaptation.png" alt="Figure 14：VGG-19 在四档预算间切换时的内存和延迟轨迹"></p>
+<p>Figure 14 的预算按 <strong>100→300→200→500 MB</strong> 改变。切换时需要暂停、释放和重新布置内存，整个过程约 1 秒；这里的 1 秒是一次切换的实际代价，<strong>不等同于单独一次内存规划计时</strong>。通常先复用已有切分与画像，仅重新规划；新预算若使旧切分失效，还要重新切分和分析。第一轮推理也可能受冷启动影响。所谓“自适应”，是能在预算变化时重新生成并执行计划，而不是每帧零成本改变额度。</p>
+<h2 id="八、它与-TFLM、MCUNetV2、vMCU-的关系，以及我接下来怎么做"><a href="#八、它与-TFLM、MCUNetV2、vMCU-的关系，以及我接下来怎么做" class="headerlink" title="八、它与 TFLM、MCUNetV2、vMCU 的关系，以及我接下来怎么做"></a>八、它与 TFLM、MCUNetV2、vMCU 的关系，以及我接下来怎么做</h2><p>FlexNN 的独到之处不是首次提出内存 packing。TFLM 已经用静态规划复用张量空间；MCUNetV2、StreamNet 和 vMCU 分别展示了空间分块、跨块缓存和算子内部更精细的安全覆盖。FlexNN 把<strong>针对瓶颈的 kernel/层内切分、权重加载时机、跨层地址布局和在线依赖执行</strong>放进同一个预算约束中。真正的新问题是：当权重可提前加载、其生命周期因此改变时，怎样仍在受限内存里减少碎片和 I/O 等待。</p>
+<p>这也为我的 INT8 研究方向划清了起点。论文测试的是 FP32；INT8 会改变张量字节数、权重布局、kernel 工作区、量化参数、对齐要求和速度，不能把 FP32 的切片尺度、延迟优势与节省比例直接搬过来。我更合理的下一步是：</p>
+<ol>
+<li><strong>先量目标设备。</strong>区分标称 RAM、系统保留、推理进程可用空间、连续缓冲区、缓存与外存带宽；记录不同预算下真实峰值，而不是把 12 GB、512 MB、50 MB 当成可互换的“内存大小”。</li>
+<li><strong>按层重做 INT8 画像。</strong>分别量输入/输出激活、权重、计算中间数据及其生命周期，再检查峰值究竟由哪个部分主导。</li>
+<li><strong>按瓶颈选择实验。</strong>权重大，尝试权重切片与按需加载；Im2col 工作区大，尝试只生成一片展开数据；逻辑激活本身大，研究空间 patch、层间流式化或安全复用。先证明每种方法能满足预算，再测延迟、I/O、能耗和数值正确性。</li>
+<li><strong>最后评估系统层规划。</strong>对不同切分方案分别构建时间—地址图，量预加载可隐藏多少 I/O，以及规划与预算切换要付出的实际成本。</li>
+</ol>
+<p>我现在能在脑中复现这篇论文的主流程：<strong>给模型和预算 → 量每层内存组成 → 选 kernel 并切瓶颈 → 预变换权重 → 按生命周期摆放激活/权重/临时数据并决定预加载 → 从地址冲突推导线程依赖 → 在线按计划执行 → 测内存、延迟与适应成本。</strong>如果换设备或换成 INT8，保留的是这条判断链；具体切法与收益要由新平台的数据决定。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Xiangyu Li 等，<a target="_blank" rel="noopener" href="https://www.microsoft.com/en-us/research/wp-content/uploads/2024/07/mobicom24-flexnn.pdf"><em>FlexNN: Efficient and Adaptive DNN Inference on Memory-Constrained Edge Devices</em></a>，ACM MobiCom 2024，§2–§6，Figures 1–14，Tables 1–2。</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/xxxxyu/FlexNN">FlexNN 作者代码与评测说明</a>。</li>
+</ul>
+</article><footer class="literature-footer"><p>个人文献阅读笔记，不代表任何学校、机构或论文作者的官方立场。</p></footer></main></body></html>
